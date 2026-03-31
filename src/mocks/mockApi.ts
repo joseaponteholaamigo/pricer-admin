@@ -205,6 +205,146 @@ function handleUsers(method: string, path: string, body: unknown) {
   return null
 }
 
+// ─── Reglas ───────────────────────────────────────────────────────────────────
+function handleReglas(method: string, path: string, body: unknown) {
+  // GET reglas/resumen
+  if (method === 'GET' && path === 'reglas/resumen') {
+    const r001Ok = Object.values(store.r001).some(v => v.length > 0)
+    const r002Ok = store.r002.length > 0
+    const r004Ok = store.r004.length > 0
+    const r007Ok = store.r007.canales.length > 0
+    const r008Ok = store.r008.umbralSuperior > 0
+    const r009Ok = store.r009.length > 0
+    return ok([
+      { tipo: 'R-001', descripcion: 'Mapeo de competidores', configurada: r001Ok, actualizadaEn: '2025-11-15T10:30:00Z', actualizadaPor: 'Consultor Demo' },
+      { tipo: 'R-002', descripcion: 'Valor percibido por categoría', configurada: r002Ok, actualizadaEn: '2025-11-20T14:00:00Z', actualizadaPor: 'Consultor Demo' },
+      { tipo: 'R-004', descripcion: 'Coeficientes de elasticidad', configurada: r004Ok, actualizadaEn: '2025-11-18T09:00:00Z', actualizadaPor: 'Admin Prisier' },
+      { tipo: 'R-005', descripcion: 'Estructura archivo costos', configurada: true, actualizadaEn: '2025-11-10T08:00:00Z', actualizadaPor: 'Admin Prisier' },
+      { tipo: 'R-006', descripcion: 'Estructura archivo SKUs/PVP', configurada: true, actualizadaEn: '2025-11-10T08:00:00Z', actualizadaPor: 'Admin Prisier' },
+      { tipo: 'R-007', descripcion: 'Canales y márgenes', configurada: r007Ok, actualizadaEn: '2025-11-22T16:00:00Z', actualizadaPor: 'Admin Prisier' },
+      { tipo: 'R-008', descripcion: 'Umbrales de alerta', configurada: r008Ok, actualizadaEn: '2025-11-22T16:00:00Z', actualizadaPor: 'Consultor Demo' },
+      { tipo: 'R-009', descripcion: 'Peso importancia económica', configurada: r009Ok, actualizadaEn: '2025-11-19T11:00:00Z', actualizadaPor: 'Consultor Demo' },
+    ])
+  }
+
+  // GET reglas/competidores
+  if (method === 'GET' && path === 'reglas/competidores') {
+    return ok({
+      skus: store.skus,
+      competidores: store.competidores,
+      mapeo: store.r001,
+    })
+  }
+
+  // PUT reglas/competidores
+  if (method === 'PUT' && path === 'reglas/competidores') {
+    const { mapeo } = body as { mapeo: Record<string, string[]> }
+    store.r001 = mapeo
+    return ok({ mapeo: store.r001 })
+  }
+
+  // GET reglas/valor-percibido
+  if (method === 'GET' && path === 'reglas/valor-percibido') {
+    return ok(store.r002.map(cat => ({
+      categoria: cat.categoria,
+      atributos: cat.atributos,
+      vp: Math.round(cat.atributos.reduce((acc, a) => acc + a.peso * a.calificacion, 0) * 100) / 100,
+    })))
+  }
+
+  // PUT reglas/valor-percibido
+  if (method === 'PUT' && path === 'reglas/valor-percibido') {
+    const { categoria, atributos } = body as { categoria: string; atributos: typeof store.r002[0]['atributos'] }
+    const idx = store.r002.findIndex(c => c.categoria === categoria)
+    if (idx === -1) {
+      store.r002.push({ categoria, atributos })
+    } else {
+      store.r002[idx].atributos = atributos
+    }
+    const cat = store.r002.find(c => c.categoria === categoria)!
+    return ok({
+      categoria,
+      atributos: cat.atributos,
+      vp: Math.round(cat.atributos.reduce((acc, a) => acc + a.peso * a.calificacion, 0) * 100) / 100,
+    })
+  }
+
+  // GET reglas/elasticidad
+  if (method === 'GET' && path === 'reglas/elasticidad') {
+    return ok(store.r004.map(e => ({
+      ...e,
+      skuNombre: store.skus.find(s => s.id === e.skuId)?.nombre ?? e.skuId,
+    })))
+  }
+
+  // PUT reglas/elasticidad
+  if (method === 'PUT' && path === 'reglas/elasticidad') {
+    const items = body as typeof store.r004
+    store.r004 = items
+    return ok(store.r004)
+  }
+
+  // GET reglas/costos-config
+  if (method === 'GET' && path === 'reglas/costos-config') {
+    return ok(store.r005)
+  }
+
+  // PUT reglas/costos-config
+  if (method === 'PUT' && path === 'reglas/costos-config') {
+    store.r005 = body as typeof store.r005
+    return ok(store.r005)
+  }
+
+  // GET reglas/skus-config
+  if (method === 'GET' && path === 'reglas/skus-config') {
+    return ok(store.r006)
+  }
+
+  // PUT reglas/skus-config
+  if (method === 'PUT' && path === 'reglas/skus-config') {
+    store.r006 = body as typeof store.r006
+    return ok(store.r006)
+  }
+
+  // GET reglas/canales-margenes
+  if (method === 'GET' && path === 'reglas/canales-margenes') {
+    return ok(store.r007)
+  }
+
+  // PUT reglas/canales-margenes
+  if (method === 'PUT' && path === 'reglas/canales-margenes') {
+    store.r007 = body as typeof store.r007
+    return ok(store.r007)
+  }
+
+  // GET reglas/umbrales
+  if (method === 'GET' && path === 'reglas/umbrales') {
+    return ok(store.r008)
+  }
+
+  // PUT reglas/umbrales
+  if (method === 'PUT' && path === 'reglas/umbrales') {
+    store.r008 = body as typeof store.r008
+    return ok(store.r008)
+  }
+
+  // GET reglas/profit-pool
+  if (method === 'GET' && path === 'reglas/profit-pool') {
+    return ok(store.r009.map(p => ({
+      ...p,
+      skuNombre: store.skus.find(s => s.id === p.skuId)?.nombre ?? p.skuId,
+    })))
+  }
+
+  // PUT reglas/profit-pool
+  if (method === 'PUT' && path === 'reglas/profit-pool') {
+    store.r009 = body as typeof store.r009
+    return ok(store.r009)
+  }
+
+  return null
+}
+
 // ─── Router principal ─────────────────────────────────────────────────────────
 function route<T>(method: string, rawUrl: string, body?: unknown): Promise<{ data: T }> {
   const { path, params: _params } = parseUrl(rawUrl)
@@ -219,6 +359,11 @@ function route<T>(method: string, rawUrl: string, body?: unknown): Promise<{ dat
 
   if (path === 'users' || path.startsWith('users/')) {
     const r = handleUsers(method, path, body)
+    if (r) return r as Promise<{ data: T }>
+  }
+
+  if (path === 'reglas' || path.startsWith('reglas/')) {
+    const r = handleReglas(method, path, body)
     if (r) return r as Promise<{ data: T }>
   }
 

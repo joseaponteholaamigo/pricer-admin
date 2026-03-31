@@ -61,7 +61,7 @@ realApi.interceptors.response.use(
         pendingRequests = []
         localStorage.removeItem('access_token')
         localStorage.removeItem('refresh_token')
-        window.location.href = '/login'
+        window.location.href = '/pricer-admin/login'
       }
     }
     return Promise.reject(error)

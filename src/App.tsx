@@ -7,6 +7,7 @@ import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
 import TenantsPage from './pages/TenantsPage'
 import UsersPage from './pages/UsersPage'
+import ReglesPage from './pages/ReglesPage'
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000 } },
@@ -15,7 +16,7 @@ const queryClient = new QueryClient({
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
+      <BrowserRouter basename="/pricer-admin/">
         <AuthProvider>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
@@ -24,6 +25,7 @@ function App() {
                 <Route path="/" element={<DashboardPage />} />
                 <Route path="/tenants" element={<TenantsPage />} />
                 <Route path="/usuarios" element={<UsersPage />} />
+                <Route path="/reglas" element={<ReglesPage />} />
               </Route>
             </Route>
           </Routes>
