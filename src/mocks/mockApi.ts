@@ -372,8 +372,16 @@ function route<T>(method: string, rawUrl: string, body?: unknown): Promise<{ dat
 }
 
 // ─── Interfaz pública (compatible con axios) ──────────────────────────────────
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const mockApi: any = {
+
+export interface ApiClient {
+  get<T = unknown>(url: string): Promise<{ data: T }>
+  post<T = unknown>(url: string, body?: unknown): Promise<{ data: T }>
+  put<T = unknown>(url: string, body?: unknown): Promise<{ data: T }>
+  delete<T = unknown>(url: string): Promise<{ data: T }>
+  patch<T = unknown>(url: string, body?: unknown): Promise<{ data: T }>
+}
+
+const mockApi: ApiClient = {
   get: <T>(url: string) => route<T>('GET', url),
   post: <T>(url: string, body?: unknown) => route<T>('POST', url, body),
   put: <T>(url: string, body?: unknown) => route<T>('PUT', url, body),

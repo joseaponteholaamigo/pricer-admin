@@ -1,5 +1,5 @@
 import axios from 'axios'
-import mockApi from '../mocks/mockApi'
+import mockApi, { type ApiClient } from '../mocks/mockApi'
 
 const USE_MOCK = import.meta.env.VITE_MOCK_MODE === 'true'
 
@@ -68,7 +68,6 @@ realApi.interceptors.response.use(
   }
 )
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const api: any = USE_MOCK ? mockApi : realApi
+const api: ApiClient = USE_MOCK ? mockApi : realApi as unknown as ApiClient
 
 export default api

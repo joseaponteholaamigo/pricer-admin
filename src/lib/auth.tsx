@@ -27,7 +27,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const token = localStorage.getItem('access_token')
     if (token) {
-      api.get('/auth/me')
+      api.get<UserInfo>('/auth/me')
         .then(({ data }) => setUser(data))
         .catch(() => {
           // No borrar tokens aquí — el interceptor de api.ts maneja el refresh
@@ -40,7 +40,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const login = async (email: string, password: string) => {
-    const { data } = await api.post('/auth/login', { email, password })
+    const { data } = await api.post<{ accessToken: string; refreshToken: string; user: UserInfo }>('/auth/login', { email, password })
     localStorage.setItem('access_token', data.accessToken)
     localStorage.setItem('refresh_token', data.refreshToken)
     setUser(data.user)
