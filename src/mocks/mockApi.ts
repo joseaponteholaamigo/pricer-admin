@@ -207,64 +207,67 @@ function handleUsers(method: string, path: string, body: unknown) {
 
 // ─── Reglas ───────────────────────────────────────────────────────────────────
 function handleReglas(method: string, path: string, body: unknown, params: URLSearchParams = new URLSearchParams()) {
+  const tid = params.get('tenantId') ?? 'tenant-001'
+
+  // Per-tenant data with empty defaults for tenants without configuration
+  const skus        = store.skus.filter(s => s.tenantId === tid)
+  const r001        = store.r001[tid] ?? {}
+  const r002        = store.r002[tid] ?? []
+  const r002_cals   = store.r002_calificaciones[tid] ?? []
+  const r004        = store.r004[tid] ?? []
+  const r005        = store.r005[tid] ?? { iva: 0.19, tipoEstructura: 'costo_variable' }
+  const r006        = store.r006[tid] ?? { iva: 0.19, tipoEstructura: 'pvp_sugerido' }
+  const r007        = store.r007[tid] ?? { iva: 0.19, canales: [] as typeof store.r007['tenant-001']['canales'] }
+  const r008        = store.r008[tid] ?? { umbralSuperior: 0.05, umbralInferior: 0.05 }
+  const r009        = store.r009[tid] ?? []
+  const categorias  = store.categorias
+  const importaciones = store.importaciones[tid] ?? []
+  const vinculaciones = store.vinculaciones[tid] ?? {}
+
   // GET reglas/resumen
   if (method === 'GET' && path === 'reglas/resumen') {
-    const portafolioOk = store.skus.length > 0
-    const importacionesOk = store.importaciones.length > 0
-    const atributosOk = store.r002.length > 0
-    const calificacionesOk = store.r002_calificaciones.length > 0
-    const elasticidadOk = store.r004.length > 0
-    const canalesOk = store.r007.canales.length > 0
-    const umbralesOk = store.r008.umbralSuperior > 0
-    const retailersOk = store.r010.length > 0
     return ok([
-      { tipo: 'Portafolio',      descripcion: 'SKUs y precios del portafolio',          configurada: portafolioOk,    actualizadaEn: '2025-11-10T08:00:00Z', actualizadaPor: 'Admin Prisier' },
-      { tipo: 'Importaciones',   descripcion: 'Historial de cargas de portafolio',       configurada: importacionesOk, actualizadaEn: '2025-11-12T09:00:00Z', actualizadaPor: 'Admin Prisier' },
-      { tipo: 'Atributos',       descripcion: 'Atributos de valor percibido',            configurada: atributosOk,     actualizadaEn: '2025-11-20T14:00:00Z', actualizadaPor: 'Consultor Demo' },
-      { tipo: 'Calificaciones',  descripcion: 'Calificaciones por SKU y competidor',     configurada: calificacionesOk, actualizadaEn: '2025-11-21T10:00:00Z', actualizadaPor: 'Consultor Demo' },
-      { tipo: 'Elasticidad',     descripcion: 'Coeficientes de elasticidad por SKU',     configurada: elasticidadOk,   actualizadaEn: '2025-11-18T09:00:00Z', actualizadaPor: 'Admin Prisier' },
-      { tipo: 'Canales',         descripcion: 'Canales de venta y márgenes',             configurada: canalesOk,       actualizadaEn: '2025-11-22T16:00:00Z', actualizadaPor: 'Admin Prisier' },
-      { tipo: 'Umbrales',        descripcion: 'Umbrales de alerta de precios',           configurada: umbralesOk,      actualizadaEn: '2025-11-22T16:00:00Z', actualizadaPor: 'Consultor Demo' },
-      { tipo: 'Retailers',       descripcion: 'Retailers activos del tenant',            configurada: retailersOk,     actualizadaEn: '2025-11-19T11:00:00Z', actualizadaPor: 'Consultor Demo' },
+      { tipo: 'Portafolio',      descripcion: 'SKUs y precios del portafolio',          configurada: skus.length > 0,          actualizadaEn: '2025-11-10T08:00:00Z', actualizadaPor: 'Admin Prisier' },
+      { tipo: 'Importaciones',   descripcion: 'Historial de cargas de portafolio',       configurada: importaciones.length > 0, actualizadaEn: '2025-11-12T09:00:00Z', actualizadaPor: 'Admin Prisier' },
+      { tipo: 'Atributos',       descripcion: 'Atributos de valor percibido',            configurada: r002.length > 0,          actualizadaEn: '2025-11-20T14:00:00Z', actualizadaPor: 'Consultor Demo' },
+      { tipo: 'Calificaciones',  descripcion: 'Calificaciones por SKU y competidor',     configurada: r002_cals.length > 0,     actualizadaEn: '2025-11-21T10:00:00Z', actualizadaPor: 'Consultor Demo' },
+      { tipo: 'Elasticidad',     descripcion: 'Coeficientes de elasticidad por SKU',     configurada: r004.length > 0,          actualizadaEn: '2025-11-18T09:00:00Z', actualizadaPor: 'Admin Prisier' },
+      { tipo: 'Canales',         descripcion: 'Canales de venta y márgenes',             configurada: r007.canales.length > 0,  actualizadaEn: '2025-11-22T16:00:00Z', actualizadaPor: 'Admin Prisier' },
+      { tipo: 'Umbrales',        descripcion: 'Umbrales de alerta de precios',           configurada: r008.umbralSuperior > 0,  actualizadaEn: '2025-11-22T16:00:00Z', actualizadaPor: 'Consultor Demo' },
+      { tipo: 'Retailers',       descripcion: 'Retailers activos del tenant',            configurada: store.r010.some(r => r.tenantId === tid), actualizadaEn: '2025-11-19T11:00:00Z', actualizadaPor: 'Consultor Demo' },
     ])
   }
 
   // GET reglas/competidores
   if (method === 'GET' && path === 'reglas/competidores') {
-    return ok({
-      skus: store.skus,
-      competidores: store.competidores,
-      mapeo: store.r001,
-    })
+    return ok({ skus, competidores: store.competidores, mapeo: r001 })
   }
 
   // PUT reglas/competidores
   if (method === 'PUT' && path === 'reglas/competidores') {
     const { mapeo } = body as { mapeo: Record<string, string[]> }
-    store.r001 = mapeo
-    return ok({ mapeo: store.r001 })
+    store.r001[tid] = mapeo
+    return ok({ mapeo: store.r001[tid] })
   }
 
   // GET reglas/atributos
   if (method === 'GET' && path === 'reglas/atributos') {
-    return ok(store.r002.map(cat => ({
-      categoria: cat.categoria,
-      atributos: cat.atributos,
-    })))
+    return ok(r002.map(cat => ({ categoria: cat.categoria, atributos: cat.atributos })))
   }
 
   // PUT reglas/atributos
   if (method === 'PUT' && path === 'reglas/atributos') {
-    const { categoria, atributos } = body as { categoria: string; atributos: typeof store.r002[0]['atributos'] }
-    const idx = store.r002.findIndex(c => c.categoria === categoria)
-    if (idx === -1) store.r002.push({ categoria, atributos })
-    else store.r002[idx].atributos = atributos
+    const { categoria, atributos } = body as { categoria: string; atributos: typeof r002[0]['atributos'] }
+    if (!store.r002[tid]) store.r002[tid] = []
+    const idx = store.r002[tid].findIndex(c => c.categoria === categoria)
+    if (idx === -1) store.r002[tid].push({ categoria, atributos })
+    else store.r002[tid][idx].atributos = atributos
     return ok({ categoria, atributos })
   }
 
   // GET reglas/valor-percibido
   if (method === 'GET' && path === 'reglas/valor-percibido') {
-    return ok(store.r002.map(cat => ({
+    return ok(r002.map(cat => ({
       categoria: cat.categoria,
       atributos: cat.atributos,
       vp: Math.round(cat.atributos.reduce((acc, a) => acc + a.peso * (a.calificacion ?? 0), 0) * 100) / 100,
@@ -273,14 +276,12 @@ function handleReglas(method: string, path: string, body: unknown, params: URLSe
 
   // PUT reglas/valor-percibido
   if (method === 'PUT' && path === 'reglas/valor-percibido') {
-    const { categoria, atributos } = body as { categoria: string; atributos: typeof store.r002[0]['atributos'] }
-    const idx = store.r002.findIndex(c => c.categoria === categoria)
-    if (idx === -1) {
-      store.r002.push({ categoria, atributos })
-    } else {
-      store.r002[idx].atributos = atributos
-    }
-    const cat = store.r002.find(c => c.categoria === categoria)!
+    const { categoria, atributos } = body as { categoria: string; atributos: typeof r002[0]['atributos'] }
+    if (!store.r002[tid]) store.r002[tid] = []
+    const idx = store.r002[tid].findIndex(c => c.categoria === categoria)
+    if (idx === -1) store.r002[tid].push({ categoria, atributos })
+    else store.r002[tid][idx].atributos = atributos
+    const cat = store.r002[tid].find(c => c.categoria === categoria)!
     return ok({
       categoria,
       atributos: cat.atributos,
@@ -290,98 +291,86 @@ function handleReglas(method: string, path: string, body: unknown, params: URLSe
 
   // GET reglas/elasticidad
   if (method === 'GET' && path === 'reglas/elasticidad') {
-    return ok(store.r004.map(e => ({
-      ...e,
-      skuNombre: store.skus.find(s => s.id === e.skuId)?.nombre ?? e.skuId,
-    })))
+    return ok(r004.map(e => ({ ...e, skuNombre: skus.find(s => s.id === e.skuId)?.nombre ?? e.skuId })))
   }
 
   // PUT reglas/elasticidad
   if (method === 'PUT' && path === 'reglas/elasticidad') {
-    const items = body as typeof store.r004
-    store.r004 = items
-    return ok(store.r004)
+    store.r004[tid] = body as typeof r004
+    return ok(store.r004[tid])
   }
 
   // GET reglas/costos-config
   if (method === 'GET' && path === 'reglas/costos-config') {
-    return ok(store.r005)
+    return ok(r005)
   }
 
   // PUT reglas/costos-config
   if (method === 'PUT' && path === 'reglas/costos-config') {
-    store.r005 = body as typeof store.r005
-    return ok(store.r005)
+    store.r005[tid] = body as typeof r005
+    return ok(store.r005[tid])
   }
 
   // GET reglas/skus-config
   if (method === 'GET' && path === 'reglas/skus-config') {
-    return ok(store.r006)
+    return ok(r006)
   }
 
   // PUT reglas/skus-config
   if (method === 'PUT' && path === 'reglas/skus-config') {
-    store.r006 = body as typeof store.r006
-    return ok(store.r006)
+    store.r006[tid] = body as typeof r006
+    return ok(store.r006[tid])
   }
 
   // GET reglas/canales-margenes
   if (method === 'GET' && path === 'reglas/canales-margenes') {
-    return ok(store.r007)
+    return ok(r007)
   }
 
   // PUT reglas/canales-margenes
   if (method === 'PUT' && path === 'reglas/canales-margenes') {
-    store.r007 = body as typeof store.r007
-    return ok(store.r007)
+    store.r007[tid] = body as typeof r007
+    return ok(store.r007[tid])
   }
 
   // GET reglas/umbrales
   if (method === 'GET' && path === 'reglas/umbrales') {
-    return ok(store.r008)
+    return ok(r008)
   }
 
   // PUT reglas/umbrales
   if (method === 'PUT' && path === 'reglas/umbrales') {
-    store.r008 = body as typeof store.r008
-    return ok(store.r008)
+    store.r008[tid] = body as typeof r008
+    return ok(store.r008[tid])
   }
 
   // GET reglas/profit-pool
   if (method === 'GET' && path === 'reglas/profit-pool') {
-    return ok(store.r009.map(p => ({
-      ...p,
-      skuNombre: store.skus.find(s => s.id === p.skuId)?.nombre ?? p.skuId,
-    })))
+    return ok(r009.map(p => ({ ...p, skuNombre: skus.find(s => s.id === p.skuId)?.nombre ?? p.skuId })))
   }
 
   // PUT reglas/profit-pool
   if (method === 'PUT' && path === 'reglas/profit-pool') {
-    store.r009 = body as typeof store.r009
-    return ok(store.r009)
+    store.r009[tid] = body as typeof r009
+    return ok(store.r009[tid])
   }
 
   // GET reglas/calificaciones
   if (method === 'GET' && path === 'reglas/calificaciones') {
     const skuId = params.get('skuId')
     if (!skuId) return Promise.reject({ response: { status: 400 } })
-    const sku = store.skus.find(s => s.id === skuId)
+    const sku = skus.find(s => s.id === skuId)
     if (!sku) return Promise.reject({ response: { status: 404 } })
-    const catAttrs = store.r002.find(c => c.categoria === sku.categoria)
+    const catAttrs = r002.find(c => c.categoria === sku.categoria)
     if (!catAttrs) return ok(null)
-    const competidoresDelSku = store.r001[skuId] ?? []
+    const competidoresDelSku = r001[skuId] ?? []
     const atributos = catAttrs.atributos.map(a => {
-      const calRow = store.r002_calificaciones.find(c => c.skuId === skuId && c.atributo === a.nombre)
+      const calRow = r002_cals.find(c => c.skuId === skuId && c.atributo === a.nombre)
       const calComp: Record<string, number> = {}
       for (const compId of competidoresDelSku) {
         calComp[compId] = calRow?.calificacionesCompetidor[compId] ?? 0
       }
-      return {
-        nombre: a.nombre,
-        peso: a.peso,
-        calificacionPropia: calRow?.calificacionPropia ?? 0,
-        calificacionesCompetidor: calComp,
-      }
+      return { nombre: a.nombre, peso: a.peso, calificacionPropia: calRow?.calificacionPropia ?? 0, calificacionesCompetidor: calComp }
     })
     const vpPropio = atributos.reduce((s, a) => s + a.peso * a.calificacionPropia, 0)
     const vpCompetidor: Record<string, number> = {}
@@ -397,20 +386,21 @@ function handleReglas(method: string, path: string, body: unknown, params: URLSe
       skuId: string; modo: 'propio' | 'competidor'; competidorId: string | null
       calificaciones: Record<string, number>
     }
+    if (!store.r002_calificaciones[tid]) store.r002_calificaciones[tid] = []
     for (const [atributo, valor] of Object.entries(calificaciones)) {
-      const idx = store.r002_calificaciones.findIndex(c => c.skuId === skuId && c.atributo === atributo)
+      const idx = store.r002_calificaciones[tid].findIndex(c => c.skuId === skuId && c.atributo === atributo)
       if (idx === -1) {
-        store.r002_calificaciones.push({
+        store.r002_calificaciones[tid].push({
           skuId, atributo,
           calificacionPropia: modo === 'propio' ? valor : 0,
           calificacionesCompetidor: modo === 'competidor' && competidorId ? { [competidorId]: valor } : {},
         })
       } else {
         if (modo === 'propio') {
-          store.r002_calificaciones[idx].calificacionPropia = valor
+          store.r002_calificaciones[tid][idx].calificacionPropia = valor
         } else if (competidorId) {
-          store.r002_calificaciones[idx].calificacionesCompetidor = {
-            ...store.r002_calificaciones[idx].calificacionesCompetidor,
+          store.r002_calificaciones[tid][idx].calificacionesCompetidor = {
+            ...store.r002_calificaciones[tid][idx].calificacionesCompetidor,
             [competidorId]: valor,
           }
         }
@@ -421,7 +411,7 @@ function handleReglas(method: string, path: string, body: unknown, params: URLSe
 
   // GET reglas/portafolio/importaciones
   if (method === 'GET' && path === 'reglas/portafolio/importaciones') {
-    return ok([...store.importaciones].reverse())
+    return ok([...importaciones].reverse())
   }
 
   // GET reglas/portafolio/plantilla — descarga template xlsx estático
@@ -431,73 +421,92 @@ function handleReglas(method: string, path: string, body: unknown, params: URLSe
       .then(blob => ({ data: blob })) as ReturnType<typeof ok>
   }
 
+  // GET reglas/vinculaciones
+  if (method === 'GET' && path === 'reglas/vinculaciones') {
+    return ok(vinculaciones)
+  }
+
+  // PUT reglas/vinculaciones
+  if (method === 'PUT' && path === 'reglas/vinculaciones') {
+    const { mapeo } = body as { mapeo: Record<string, Array<{ tipo: 'propio' | 'competencia'; id: string }>> }
+    store.vinculaciones[tid] = mapeo
+    return ok(store.vinculaciones[tid])
+  }
+
+  // GET reglas/skus-competencia
+  if (method === 'GET' && path === 'reglas/skus-competencia') {
+    return ok(store.skusCompetencia.filter(s => s.tenantId === tid))
+  }
+
+  // PUT reglas/skus-competencia
+  if (method === 'PUT' && path === 'reglas/skus-competencia') {
+    const { items } = body as { items: Array<{ id: string; ean: string; nombre: string; marca: string; categoria: string; pvpReferencia: number }> }
+    store.skusCompetencia = [
+      ...store.skusCompetencia.filter(s => s.tenantId !== tid),
+      ...items.map(i => ({ ...i, tenantId: tid })),
+    ]
+    return ok(store.skusCompetencia.filter(s => s.tenantId === tid))
+  }
+
+  // GET reglas/categorias — global list, same for all tenants
+  if (method === 'GET' && path === 'reglas/categorias') {
+    return ok(categorias)
+  }
+
+  // PUT reglas/categorias — updates the global list
+  if (method === 'PUT' && path === 'reglas/categorias') {
+    const { categorias: cats } = body as { categorias: Array<{ nombre: string; iva: number }> }
+    store.categorias = cats
+    return ok(store.categorias)
+  }
+
   // GET reglas/portafolio
   if (method === 'GET' && path === 'reglas/portafolio') {
     return ok({
-      iva: store.portafolio.iva,
-      items: store.skus.map(s => ({
-        skuId: s.id,
-        ean: s.ean,
-        nombre: s.nombre,
-        marca: s.marca,
-        categoria: s.categoria,
-        pvpSugerido: s.pvpSugerido,
-        costoVariable: s.costoVariable,
-        pesoProfitPool: s.pesoProfitPool,
+      items: skus.map(s => ({
+        skuId: s.id, ean: s.ean, nombre: s.nombre, marca: s.marca,
+        categoria: s.categoria, pvpSugerido: s.pvpSugerido,
+        costoVariable: s.costoVariable, pesoProfitPool: s.pesoProfitPool,
       })),
     })
   }
 
   // PUT reglas/portafolio
   if (method === 'PUT' && path === 'reglas/portafolio') {
-    const { iva, items } = body as { iva: number; items: Array<{ skuId: string; pvpSugerido: number; costoVariable: number; pesoProfitPool: number }> }
-    store.portafolio.iva = iva
+    const { items } = body as { items: Array<{ skuId: string; pvpSugerido: number; costoVariable: number; pesoProfitPool: number }> }
     items.forEach(item => {
-      const sku = store.skus.find(s => s.id === item.skuId)
-      if (sku) {
-        sku.pvpSugerido = item.pvpSugerido
-        sku.costoVariable = item.costoVariable
-        sku.pesoProfitPool = item.pesoProfitPool
-      }
+      const sku = store.skus.find(s => s.id === item.skuId && s.tenantId === tid)
+      if (sku) { sku.pvpSugerido = item.pvpSugerido; sku.costoVariable = item.costoVariable; sku.pesoProfitPool = item.pesoProfitPool }
     })
-    return ok({ iva: store.portafolio.iva, items })
+    return ok({ items })
   }
 
   // POST reglas/portafolio/upload — simula parsing de xlsx y registra historial
   if (method === 'POST' && path === 'reglas/portafolio/upload') {
-    const items = store.skus.map(s => ({
+    const items = skus.map(s => ({
       skuId: s.id, ean: s.ean, nombre: s.nombre, marca: s.marca,
       categoria: s.categoria, pvpSugerido: s.pvpSugerido,
       costoVariable: s.costoVariable, pesoProfitPool: s.pesoProfitPool,
     }))
     const record = {
-      id: newId(),
-      fecha: new Date().toISOString(),
-      archivo: 'portafolio.xlsx',
-      totalSkus: items.length,
-      advertencias: 0,
-      errores: [] as string[],
-      estado: 'exitoso' as const,
+      id: newId(), fecha: new Date().toISOString(), archivo: 'portafolio.xlsx',
+      totalSkus: items.length, advertencias: 0, errores: [] as string[], estado: 'exitoso' as const,
     }
-    store.importaciones.push(record)
+    if (!store.importaciones[tid]) store.importaciones[tid] = []
+    store.importaciones[tid].push(record)
     return ok({ items, totalProcesados: items.length, errores: [], importacionId: record.id })
   }
 
   // GET reglas/retailers
   if (method === 'GET' && path === 'reglas/retailers') {
-    const tenantId = params.get('tenantId')
-    const retailers = store.r010
-      .filter(r => !tenantId || r.tenantId === tenantId)
-      .map(({ id, nombre, activo }) => ({ id, nombre, activo }))
-    return ok(retailers)
+    return ok(store.r010.filter(r => r.tenantId === tid).map(({ id, nombre, activo }) => ({ id, nombre, activo })))
   }
 
   // PUT reglas/retailers
   if (method === 'PUT' && path === 'reglas/retailers') {
-    const tenantId = params.get('tenantId')
     const items = body as Array<{ id: string; nombre: string; activo: boolean }>
-    store.r010 = store.r010.filter(r => r.tenantId !== tenantId)
-    items.forEach(item => store.r010.push({ ...item, tenantId: tenantId ?? '' }))
+    store.r010 = store.r010.filter(r => r.tenantId !== tid)
+    items.forEach(item => store.r010.push({ ...item, tenantId: tid }))
     return ok(items)
   }
 
@@ -676,6 +685,102 @@ function handleAdminScraper(method: string, path: string, params: URLSearchParam
   return null
 }
 
+// ─── Admin Dashboard ──────────────────────────────────────────────────────────
+
+const MOCK_TENANT_ACTIVIDAD = [
+  {
+    tenantId: 'tenant-001',
+    tenantNombre: 'ConGrupo',
+    tenantEstado: 'activo',
+    ultimaCargaScraper: {
+      fecha: new Date(Date.now() - 2 * 86400_000).toISOString(),
+      tipo: 'competidores',
+      estado: 'completado_con_errores' as const,
+      nombreArchivo: 'precios_mercado_oct.xlsx',
+    },
+    ultimaActualizacionReglas: {
+      fecha: new Date(Date.now() - 1 * 86400_000).toISOString(),
+      tipo: 'Canales',
+      actualizadaPor: 'Admin Prisier',
+    },
+    ultimaActividad: new Date(Date.now() - 1 * 86400_000).toISOString(),
+  },
+  {
+    tenantId: 'tenant-002',
+    tenantNombre: 'BevMax S.A.',
+    tenantEstado: 'activo',
+    ultimaCargaScraper: {
+      fecha: new Date(Date.now() - 3 * 86400_000).toISOString(),
+      tipo: 'skus',
+      estado: 'completado' as const,
+      nombreArchivo: 'portafolio_bevmax_v3.xlsx',
+    },
+    ultimaActualizacionReglas: {
+      fecha: new Date(Date.now() - 4 * 86400_000).toISOString(),
+      tipo: 'Umbrales',
+      actualizadaPor: 'Consultor Demo',
+    },
+    ultimaActividad: new Date(Date.now() - 3 * 86400_000).toISOString(),
+  },
+  {
+    tenantId: 'tenant-003',
+    tenantNombre: 'Lácteos Andes',
+    tenantEstado: 'activo',
+    ultimaCargaScraper: {
+      fecha: new Date(Date.now() - 6 * 86400_000).toISOString(),
+      tipo: 'competidores',
+      estado: 'completado' as const,
+      nombreArchivo: 'competidores_lacteos_nov.xlsx',
+    },
+    ultimaActualizacionReglas: {
+      fecha: new Date(Date.now() - 5 * 86400_000).toISOString(),
+      tipo: 'Atributos',
+      actualizadaPor: 'Consultor Demo',
+    },
+    ultimaActividad: new Date(Date.now() - 5 * 86400_000).toISOString(),
+  },
+  {
+    tenantId: 'tenant-004',
+    tenantNombre: 'GranoSelect Ltda.',
+    tenantEstado: 'activo',
+    ultimaCargaScraper: null,
+    ultimaActualizacionReglas: {
+      fecha: new Date(Date.now() - 8 * 86400_000).toISOString(),
+      tipo: 'Portafolio',
+      actualizadaPor: 'Admin Prisier',
+    },
+    ultimaActividad: new Date(Date.now() - 8 * 86400_000).toISOString(),
+  },
+  {
+    tenantId: 'tenant-005',
+    tenantNombre: 'FreshMart Corp.',
+    tenantEstado: 'activo',
+    ultimaCargaScraper: {
+      fecha: new Date(Date.now() - 12 * 86400_000).toISOString(),
+      tipo: 'competidores',
+      estado: 'error' as const,
+      nombreArchivo: 'precios_freshmart_oct.xlsx',
+    },
+    ultimaActualizacionReglas: null,
+    ultimaActividad: new Date(Date.now() - 12 * 86400_000).toISOString(),
+  },
+  {
+    tenantId: 'tenant-006',
+    tenantNombre: 'NutriPack S.A.S.',
+    tenantEstado: 'inactivo',
+    ultimaCargaScraper: null,
+    ultimaActualizacionReglas: null,
+    ultimaActividad: new Date(Date.now() - 30 * 86400_000).toISOString(),
+  },
+]
+
+function handleDashboard(method: string, path: string) {
+  if (method === 'GET' && path === 'admin/dashboard/actividad-tenants') {
+    return ok([...MOCK_TENANT_ACTIVIDAD])
+  }
+  return null
+}
+
 // ─── Router principal ─────────────────────────────────────────────────────────
 function route<T>(method: string, rawUrl: string, body?: unknown): Promise<{ data: T; headers: Record<string, string> }> {
   const { path, params } = parseUrl(rawUrl)
@@ -700,6 +805,11 @@ function route<T>(method: string, rawUrl: string, body?: unknown): Promise<{ dat
 
   if (path === 'audit-logs' || path.startsWith('audit-logs/')) {
     const r = handleAuditLogs(method, path, params)
+    if (r) return r as Promise<{ data: T; headers: Record<string, string> }>
+  }
+
+  if (path.startsWith('admin/dashboard')) {
+    const r = handleDashboard(method, path)
     if (r) return r as Promise<{ data: T; headers: Record<string, string> }>
   }
 

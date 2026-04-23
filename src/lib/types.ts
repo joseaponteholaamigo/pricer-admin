@@ -126,8 +126,31 @@ export interface PortafolioItem {
 }
 
 export interface PortafolioData {
-  iva: number             // IVA nacional
   items: PortafolioItem[]
+}
+
+// Categorías con IVA por categoría
+export interface CategoriaConfig {
+  nombre: string
+  iva: number // 0.0 – 1.0
+}
+
+// Vinculación de SKU propio → SKUs competidores (propios o de competencia)
+export interface SkuVinculacion {
+  tipo: 'propio' | 'competencia'
+  id: string
+}
+
+export type VinculacionesMapeo = Record<string, SkuVinculacion[]>
+
+// SKUs de la competencia (productos individuales)
+export interface SkuCompetencia {
+  id: string
+  ean: string
+  nombre: string
+  marca: string
+  categoria: string
+  pvpReferencia: number
 }
 
 // R-007 — Canales × Categorías (sin IVA)
@@ -208,4 +231,24 @@ export interface AuditLogRow {
   valorAnterior: string | null
   valorNuevo: string | null
   ip: string | null
+}
+
+// ─── Dashboard ────────────────────────────────────────────────────────────────
+
+export interface TenantActividadItem {
+  tenantId: string
+  tenantNombre: string
+  tenantEstado: string
+  ultimaCargaScraper: {
+    fecha: string
+    tipo: string
+    estado: 'completado' | 'completado_con_errores' | 'error' | 'procesando'
+    nombreArchivo: string | null
+  } | null
+  ultimaActualizacionReglas: {
+    fecha: string
+    tipo: string
+    actualizadaPor: string | null
+  } | null
+  ultimaActividad: string
 }
