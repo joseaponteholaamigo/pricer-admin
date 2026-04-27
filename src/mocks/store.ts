@@ -85,8 +85,14 @@ function buildCalificaciones(atributos: MockCategoriaAtributos[], skus: MockSku[
   const result: MockCalificacion[] = []
   for (const cat of atributos) {
     for (const sku of skus) {
+      if (sku.categoria !== cat.categoria) continue
       for (const attr of cat.atributos) {
-        result.push({ skuId: sku.id, categoriaId: cat.categoria, atributo: attr, valor: 3 })
+        result.push({
+          skuId: sku.id,
+          atributo: attr.nombre,
+          calificacionPropia: 3,
+          calificacionesCompetidor: {},
+        })
       }
     }
   }

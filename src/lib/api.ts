@@ -1,3 +1,6 @@
+// PARITY: este archivo se mantiene en paridad con su gemelo en el otro SPA.
+// Diferencia permitida y normalizada por el script: basename en el redirect post-401
+// (/prisier-admin/login vs /prisier-client/login). Corre scripts/check-parity.sh tras editar.
 import axios from 'axios'
 import mockApi, { type ApiClient } from '../mocks/mockApi'
 

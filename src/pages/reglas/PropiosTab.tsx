@@ -1,12 +1,19 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useEffect, useId, useCallback } from 'react'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
 import { useUrlParam, useUrlNumber } from '../../lib/useUrlState'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Trash2, Pencil, X, AlertTriangle } from 'lucide-react'
+import { Plus, Trash2, Pencil, X, AlertTriangle, CheckCircle } from 'lucide-react'
 import api from '../../lib/api'
 import type { CategoriaConfig, PortafolioData, PortafolioItem } from '../../lib/types'
-import Spinner from '../../components/Spinner'
 import ConfirmModal from '../../components/ConfirmModal'
+import { SkeletonTable } from '../../components/Skeleton'
+import QueryErrorState from '../../components/QueryErrorState'
+import EmptyState from '../../components/EmptyState'
+import { useToast } from '../../components/useToast'
 import { SkuTableFilters } from './_shared'
+import { makeSkuSchema, makeCategoriaSchema } from '../../schemas/reglas'
+import { useFocusTrap } from '../../lib/useFocusTrap'
 
 // ─── Portafolio: SkuModal + PropiosTab ───────────────────────────────────────
 
@@ -24,7 +31,136 @@ interface SkuFormValues {
   pesoProfitPool: string
 }
 
-type SkuFormErrors = Partial<Record<keyof SkuFormValues, string>>
+interface CategoriaFormValues {
+  nombre: string
+  iva: string
+}
+
+// ── Sub-modal inline para crear categoría rápida ──────────────────────────────
+
+function NuevaCategoriaSubModal({
+  existingNombres,
+  onSave,
+  onClose,
+}: {
+  existingNombres: string[]
+  onSave: (values: CategoriaFormValues) => void
+  onClose: () => void
+}) {
+  const schema = useMemo(
+    () => makeCategoriaSchema({ existingNombres }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [existingNombres.join(',')],
+  )
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting, touchedFields, isSubmitted },
+  } = useForm<CategoriaFormValues>({
+    resolver: zodResolver(schema),
+    defaultValues: { nombre: '', iva: '19' },
+    mode: 'onBlur',
+    reValidateMode: 'onChange',
+  })
+
+  const showErr = (field: keyof CategoriaFormValues) => {
+    const touched = touchedFields[field] || isSubmitted
+    const msg = errors[field]?.message
+    if (!touched || !msg) return null
+    return (
+      <p id={`subcat-${field}-error`} className="text-xs text-p-red mt-1" role="alert">
+        {msg}
+      </p>
+    )
+  }
+
+  const dialogRef = useRef<HTMLDivElement>(null)
+  const titleId = useId()
+  useFocusTrap(dialogRef, true)
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [onClose])
+
+  return (
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40"
+      onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        className="bg-white rounded-xl shadow-xl w-full max-w-sm mx-4 p-4 sm:p-6"
+      >
+        <div className="flex items-center justify-between mb-4">
+          <h3 id={titleId} className="text-sm font-semibold text-p-dark">
+            Nueva categoría
+          </h3>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Cerrar sub-modal de categoría"
+            className="text-p-gray hover:text-p-dark transition-colors"
+          >
+            <X size={16} aria-hidden />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit(onSave)} noValidate>
+          <div className="space-y-3">
+            <div>
+              <label htmlFor="subcat-nombre" className="form-label">Nombre</label>
+              <input
+                id="subcat-nombre"
+                {...register('nombre')}
+                aria-invalid={!!(touchedFields.nombre || isSubmitted) && !!errors.nombre}
+                aria-describedby={errors.nombre ? 'subcat-nombre-error' : undefined}
+                className="form-input w-full"
+                placeholder="Ej: Bebidas Energéticas"
+              />
+              {showErr('nombre')}
+            </div>
+
+            <div>
+              <label htmlFor="subcat-iva" className="form-label">IVA (%)</label>
+              <input
+                id="subcat-iva"
+                type="number"
+                min={0}
+                max={100}
+                step={0.5}
+                {...register('iva')}
+                aria-invalid={!!(touchedFields.iva || isSubmitted) && !!errors.iva}
+                aria-describedby={errors.iva ? 'subcat-iva-error' : undefined}
+                className="form-input w-full"
+                placeholder="19"
+              />
+              {showErr('iva')}
+            </div>
+          </div>
+
+          <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 mt-5">
+            <button type="button" onClick={onClose} className="btn-secondary w-full sm:w-auto">
+              Cancelar
+            </button>
+            <button type="submit" disabled={isSubmitting} className="btn-primary w-full sm:w-auto">
+              Crear categoría
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+// ── SkuModal ──────────────────────────────────────────────────────────────────
 
 export function SkuModal({
   mode,
@@ -33,6 +169,7 @@ export function SkuModal({
   existingEans,
   categorias,
   totalPesoActual,
+  tenantId,
   onSave,
   onClose,
 }: {
@@ -42,10 +179,21 @@ export function SkuModal({
   existingEans: string[]
   categorias: string[]
   totalPesoActual?: number  // 0-100, para la advertencia de suma
+  tenantId: string
   onSave: (values: SkuFormValues) => void
   onClose: () => void
 }) {
-  const [vals, setVals] = useState<SkuFormValues>({
+  const queryClient = useQueryClient()
+  const toast = useToast()
+  const [showNuevaCatModal, setShowNuevaCatModal] = useState(false)
+
+  const schema = useMemo(
+    () => makeSkuSchema({ variant, existingEans }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [variant, existingEans.join(',')],
+  )
+
+  const defaultValues: SkuFormValues = {
     ean: initial?.ean ?? '',
     nombre: initial?.nombre ?? '',
     marca: initial?.marca ?? '',
@@ -53,213 +201,275 @@ export function SkuModal({
     pvpSugerido: initial?.pvpSugerido ?? '',
     costoVariable: initial?.costoVariable ?? '',
     pesoProfitPool: initial?.pesoProfitPool ?? '',
-  })
-  const [touched, setTouched] = useState<Partial<Record<keyof SkuFormValues, boolean>>>({})
-  const [submitAttempted, setSubmitAttempted] = useState(false)
-
-  const validate = (v: SkuFormValues): SkuFormErrors => {
-    const e: SkuFormErrors = {}
-    const ean = v.ean.trim()
-
-    if (!ean) {
-      e.ean = 'El EAN es requerido'
-    } else if (!/^\d+$/.test(ean)) {
-      e.ean = 'Solo se permiten dígitos'
-    } else if (ean.length !== 8 && ean.length !== 13) {
-      e.ean = 'Debe tener 8 o 13 dígitos (EAN-8 / EAN-13)'
-    } else if (existingEans.includes(ean)) {
-      e.ean = 'Ya existe un producto con este EAN'
-    }
-
-    const nombre = v.nombre.trim()
-    if (!nombre) e.nombre = 'El nombre es requerido'
-    else if (nombre.length < 3) e.nombre = 'Mínimo 3 caracteres'
-    else if (nombre.length > 100) e.nombre = 'Máximo 100 caracteres'
-
-    if (!v.marca.trim()) e.marca = 'La marca es requerida'
-    if (!v.categoria) e.categoria = 'La categoría es requerida'
-
-    if (variant === 'propios') {
-      const pvp = parseFloat(v.pvpSugerido)
-      const costo = parseFloat(v.costoVariable)
-      const peso = parseFloat(v.pesoProfitPool)
-
-      if (!v.pvpSugerido || isNaN(pvp) || pvp <= 0)
-        e.pvpSugerido = 'Debe ser mayor a 0'
-
-      if (!v.costoVariable || isNaN(costo) || costo <= 0)
-        e.costoVariable = 'Debe ser mayor a 0'
-      else if (!isNaN(pvp) && pvp > 0 && costo >= pvp)
-        e.costoVariable = 'Debe ser menor al PVP Sugerido'
-
-      if (v.pesoProfitPool === '' || isNaN(peso) || peso < 0 || peso > 100)
-        e.pesoProfitPool = 'Debe estar entre 0 y 100'
-    }
-
-    return e
   }
 
-  const errors = validate(vals)
-  const isValid = Object.keys(errors).length === 0
+  const {
+    register,
+    handleSubmit,
+    watch,
+    setValue,
+    formState: { errors, isSubmitting, touchedFields, isSubmitted },
+  } = useForm<SkuFormValues>({
+    resolver: zodResolver(schema),
+    defaultValues,
+    mode: 'onBlur',
+    reValidateMode: 'onChange',
+  })
 
-  const set = (field: keyof SkuFormValues) =>
-    (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
-      setVals(v => ({ ...v, [field]: e.target.value }))
+  // Muestra el error solo si el campo fue tocado o se intentó enviar
+  const showErr = (field: keyof SkuFormValues) => {
+    const touched = touchedFields[field] || isSubmitted
+    const msg = errors[field]?.message
+    if (!touched || !msg) return null
+    return (
+      <p id={`${field}-error`} className="text-xs text-p-red mt-0.5" role="alert">
+        {msg}
+      </p>
+    )
+  }
 
-  const blur = (field: keyof SkuFormValues) =>
-    () => setTouched(t => ({ ...t, [field]: true }))
+  const pesoProfitPoolValue = watch('pesoProfitPool')
 
-  const showErr = (field: keyof SkuFormErrors) =>
-    (touched[field] || submitAttempted) && errors[field]
-      ? <p className="text-xs text-p-red mt-0.5">{errors[field]}</p>
-      : null
-
-  const pesoWarning = useMemo(() => {
-    if (variant !== 'propios' || totalPesoActual === undefined) return null
-    const nuevoPeso = parseFloat(vals.pesoProfitPool)
-    if (isNaN(nuevoPeso)) return null
+  const { pesoWarning, isWeightBlocking } = useMemo(() => {
+    if (variant !== 'propios' || totalPesoActual === undefined) return { pesoWarning: null, isWeightBlocking: false }
+    const nuevoPeso = parseFloat(pesoProfitPoolValue)
+    if (isNaN(nuevoPeso)) return { pesoWarning: null, isWeightBlocking: false }
     const currentWeight = mode === 'edit' ? totalPesoActual - parseFloat(initial?.pesoProfitPool ?? '0') : totalPesoActual
     const sum = currentWeight + nuevoPeso
-    if (Math.abs(sum - 100) > 0.01) {
-      return `La suma de pesos quedaría en ${sum.toFixed(2)}% (se espera 100%)`
+    if (Math.abs(sum - 100) <= 0.01) return { pesoWarning: null, isWeightBlocking: false }
+    const diff = Math.abs(sum - 100)
+    const blocking = diff > 5
+    return {
+      pesoWarning: `La suma de pesos quedaría en ${sum.toFixed(2)}% (se espera 100%)`,
+      isWeightBlocking: blocking,
     }
-    return null
-  }, [variant, totalPesoActual, vals.pesoProfitPool, mode, initial?.pesoProfitPool])
+  }, [variant, totalPesoActual, pesoProfitPoolValue, mode, initial?.pesoProfitPool])
 
-  const handleSubmit = () => {
-    setSubmitAttempted(true)
-    if (isValid) onSave(vals)
-  }
+  const dialogRef = useRef<HTMLDivElement>(null)
+  const titleId = useId()
+  useFocusTrap(dialogRef, !showNuevaCatModal)
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !showNuevaCatModal) onClose()
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [onClose, showNuevaCatModal])
+
+  // ── Mutación para crear categoría inline ─────────────────────────────────────
+
+  const { data: categoriasConfig = [] } = useQuery<CategoriaConfig[]>({
+    queryKey: ['reglas-categorias', tenantId],
+    queryFn: () =>
+      api.get<CategoriaConfig[]>(`reglas/categorias?tenantId=${tenantId}`)
+        .then(r => r.data),
+    staleTime: 30_000,
+  })
+
+  const catMutation = useMutation({
+    mutationFn: (newCats: CategoriaConfig[]) =>
+      api.put(`reglas/categorias?tenantId=${tenantId}`, { categorias: newCats }),
+    onSuccess: (_data, newCats) => {
+      queryClient.invalidateQueries({ queryKey: ['reglas-categorias', tenantId] })
+      const ultima = newCats[newCats.length - 1]
+      if (ultima) setValue('categoria', ultima.nombre)
+      toast.success(`Categoría "${newCats[newCats.length - 1]?.nombre}" creada`)
+    },
+    onError: (err: unknown) => {
+      toast.error('No se pudo crear la categoría: ' + (err instanceof Error ? err.message : 'Error desconocido'))
+    },
+  })
+
+  const handleCrearCategoria = useCallback((vals: CategoriaFormValues) => {
+    const iva = parseFloat(vals.iva) / 100
+    const newCats: CategoriaConfig[] = [
+      ...categoriasConfig,
+      { nombre: vals.nombre.trim(), iva },
+    ]
+    catMutation.mutate(newCats)
+    setShowNuevaCatModal(false)
+  }, [categoriasConfig, catMutation])
+
+  const existingNombresParaSubModal = useMemo(
+    () => categoriasConfig.map(c => c.nombre),
+    [categoriasConfig],
+  )
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
-      onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}
-    >
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 p-6 max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between mb-5">
-          <h2 className="text-base font-semibold text-p-dark">
-            {mode === 'add' ? 'Agregar producto' : 'Editar producto'}
-          </h2>
-          <button onClick={onClose} className="text-p-muted hover:text-p-dark transition-colors">
-            <X size={18} />
-          </button>
-        </div>
-
-        <div className="space-y-4">
-          <div>
-            <label className="form-label">EAN / Código</label>
-            <input
-              value={vals.ean}
-              onChange={set('ean')}
-              onBlur={blur('ean')}
-              className="form-input w-full font-mono"
-              placeholder="1234567890123"
-            />
-            {showErr('ean')}
+    <>
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+        onMouseDown={e => { if (e.target === e.currentTarget && !showNuevaCatModal) onClose() }}
+      >
+        <div
+          ref={dialogRef}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={titleId}
+          className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 p-4 sm:p-6 max-h-[90vh] overflow-y-auto"
+        >
+          <div className="flex items-center justify-between mb-5">
+            <h2 id={titleId} className="text-base font-semibold text-p-dark">
+              {mode === 'add' ? 'Agregar producto' : 'Editar producto'}
+            </h2>
+            <button type="button" onClick={onClose} aria-label="Cerrar" className="text-p-muted hover:text-p-dark transition-colors">
+              <X size={18} aria-hidden />
+            </button>
           </div>
 
-          <div>
-            <label className="form-label">Nombre</label>
-            <input
-              value={vals.nombre}
-              onChange={set('nombre')}
-              onBlur={blur('nombre')}
-              className="form-input w-full"
-              placeholder="Nombre del producto"
-            />
-            {showErr('nombre')}
-          </div>
-
-          <div>
-            <label className="form-label">Marca</label>
-            <input
-              value={vals.marca}
-              onChange={set('marca')}
-              onBlur={blur('marca')}
-              className="form-input w-full"
-              placeholder="Marca"
-            />
-            {showErr('marca')}
-          </div>
-
-          <div>
-            <label className="form-label">Categoría</label>
-            <select
-              value={vals.categoria}
-              onChange={set('categoria')}
-              onBlur={blur('categoria')}
-              className="form-select w-full"
-            >
-              <option value="">Selecciona una categoría</option>
-              {categorias.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-            {showErr('categoria')}
-          </div>
-
-          {variant === 'propios' && (
-            <>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="form-label">PVP Sugerido</label>
-                  <input
-                    type="number"
-                    min={0}
-                    value={vals.pvpSugerido}
-                    onChange={set('pvpSugerido')}
-                    onBlur={blur('pvpSugerido')}
-                    className="form-input w-full"
-                    placeholder="0"
-                  />
-                  {showErr('pvpSugerido')}
-                </div>
-                <div>
-                  <label className="form-label">Costo Variable</label>
-                  <input
-                    type="number"
-                    min={0}
-                    value={vals.costoVariable}
-                    onChange={set('costoVariable')}
-                    onBlur={blur('costoVariable')}
-                    className="form-input w-full"
-                    placeholder="0"
-                  />
-                  {showErr('costoVariable')}
-                </div>
+          <form onSubmit={handleSubmit(onSave)} noValidate>
+            <div className="space-y-4">
+              <div>
+                <label htmlFor="sku-ean" className="form-label">EAN / Código</label>
+                <input
+                  id="sku-ean"
+                  {...register('ean')}
+                  aria-invalid={!!(touchedFields.ean || isSubmitted) && !!errors.ean}
+                  aria-describedby={errors.ean ? 'ean-error' : undefined}
+                  className="form-input w-full font-mono"
+                  placeholder="1234567890123"
+                />
+                {showErr('ean')}
               </div>
 
               <div>
-                <label className="form-label">Peso Profit Pool (%)</label>
+                <label htmlFor="sku-nombre" className="form-label">Nombre</label>
                 <input
-                  type="number"
-                  min={0}
-                  max={100}
-                  step={0.01}
-                  value={vals.pesoProfitPool}
-                  onChange={set('pesoProfitPool')}
-                  onBlur={blur('pesoProfitPool')}
+                  id="sku-nombre"
+                  {...register('nombre')}
+                  aria-invalid={!!(touchedFields.nombre || isSubmitted) && !!errors.nombre}
+                  aria-describedby={errors.nombre ? 'nombre-error' : undefined}
                   className="form-input w-full"
-                  placeholder="0"
+                  placeholder="Nombre del producto"
                 />
-                {showErr('pesoProfitPool')}
-                {!errors.pesoProfitPool && pesoWarning && (
-                  <p className="text-xs text-amber-500 mt-0.5 flex items-center gap-1">
-                    <AlertTriangle size={11} /> {pesoWarning}
+                {showErr('nombre')}
+              </div>
+
+              <div>
+                <label htmlFor="sku-marca" className="form-label">Marca</label>
+                <input
+                  id="sku-marca"
+                  {...register('marca')}
+                  aria-invalid={!!(touchedFields.marca || isSubmitted) && !!errors.marca}
+                  aria-describedby={errors.marca ? 'marca-error' : undefined}
+                  className="form-input w-full"
+                  placeholder="Marca"
+                />
+                {showErr('marca')}
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label htmlFor="sku-categoria" className="form-label mb-0">Categoría</label>
+                  <button
+                    type="button"
+                    onClick={() => setShowNuevaCatModal(true)}
+                    className="text-xs text-p-lime hover:text-p-lime/80 font-medium transition-colors"
+                    aria-label="Crear nueva categoría para asignar al producto"
+                  >
+                    + Crear categoría
+                  </button>
+                </div>
+                {categorias.length === 0 && mode === 'add' && (
+                  <p className="text-xs text-p-gray bg-p-bg border border-p-border rounded-lg px-3 py-2 mb-2" role="note">
+                    Aún no tienes categorías. Usa el botón "+ Crear categoría" para empezar.
                   </p>
                 )}
+                <select
+                  id="sku-categoria"
+                  {...register('categoria')}
+                  aria-invalid={!!(touchedFields.categoria || isSubmitted) && !!errors.categoria}
+                  aria-describedby={errors.categoria ? 'categoria-error' : undefined}
+                  className="form-select w-full"
+                >
+                  <option value="">Selecciona una categoría</option>
+                  {categorias.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+                {showErr('categoria')}
               </div>
-            </>
-          )}
-        </div>
 
-        <div className="flex justify-end gap-2 mt-6 pt-5 border-t border-p-border">
-          <button onClick={onClose} className="btn-secondary">Cancelar</button>
-          <button onClick={handleSubmit} className="btn-primary">
-            {mode === 'add' ? 'Agregar' : 'Guardar cambios'}
-          </button>
+              {variant === 'propios' && (
+                <>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label htmlFor="sku-pvp" className="form-label">PVP Sugerido</label>
+                      <input
+                        id="sku-pvp"
+                        type="number"
+                        min={0}
+                        {...register('pvpSugerido')}
+                        aria-invalid={!!(touchedFields.pvpSugerido || isSubmitted) && !!errors.pvpSugerido}
+                        aria-describedby={errors.pvpSugerido ? 'pvpSugerido-error' : undefined}
+                        className="form-input w-full"
+                        placeholder="0"
+                      />
+                      {showErr('pvpSugerido')}
+                    </div>
+                    <div>
+                      <label htmlFor="sku-costo" className="form-label">Costo Variable</label>
+                      <input
+                        id="sku-costo"
+                        type="number"
+                        min={0}
+                        {...register('costoVariable')}
+                        aria-invalid={!!(touchedFields.costoVariable || isSubmitted) && !!errors.costoVariable}
+                        aria-describedby={errors.costoVariable ? 'costoVariable-error' : undefined}
+                        className="form-input w-full"
+                        placeholder="0"
+                      />
+                      {showErr('costoVariable')}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label htmlFor="sku-peso" className="form-label">Peso Profit Pool (%)</label>
+                    <input
+                      id="sku-peso"
+                      type="number"
+                      min={0}
+                      max={100}
+                      step={0.01}
+                      {...register('pesoProfitPool')}
+                      aria-invalid={!!(touchedFields.pesoProfitPool || isSubmitted) && !!errors.pesoProfitPool}
+                      aria-describedby={errors.pesoProfitPool ? 'pesoProfitPool-error' : undefined}
+                      className="form-input w-full"
+                      placeholder="0"
+                    />
+                    {showErr('pesoProfitPool')}
+                    {!errors.pesoProfitPool && pesoWarning && (
+                      <p className="text-xs text-amber-500 mt-0.5 flex items-center gap-1" role="alert">
+                        <AlertTriangle size={11} aria-hidden /> {pesoWarning}
+                      </p>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 mt-6 pt-5 border-t border-p-border">
+              <button type="button" onClick={onClose} className="btn-secondary w-full sm:w-auto">Cancelar</button>
+              <button
+                type="submit"
+                disabled={isSubmitting || isWeightBlocking}
+                title={isWeightBlocking ? 'El peso profit pool total está fuera del rango aceptable (95–105%)' : undefined}
+                className="btn-primary w-full sm:w-auto disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {mode === 'add' ? 'Agregar' : 'Guardar cambios'}
+              </button>
+            </div>
+          </form>
         </div>
       </div>
-    </div>
+
+      {showNuevaCatModal && (
+        <NuevaCategoriaSubModal
+          existingNombres={existingNombresParaSubModal}
+          onSave={handleCrearCategoria}
+          onClose={() => setShowNuevaCatModal(false)}
+        />
+      )}
+    </>
   )
 }
 
@@ -267,26 +477,25 @@ export function SkuModal({
 
 function PropiosTab({ tenantId }: { tenantId: string }) {
   const queryClient = useQueryClient()
+  const toast = useToast()
   const [filterSku, setFilterSku] = useUrlParam('q')
   const [filterCategoria, setFilterCategoria] = useUrlParam('cat')
   const [page, setPage] = useUrlNumber('page', 1)
   const [modal, setModal] = useState<{ mode: 'add' | 'edit'; item?: PortafolioItem } | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<PortafolioItem | null>(null)
 
-  const { data: portafolioData, isLoading } = useQuery<PortafolioData | null>({
+  const { data: portafolioData, isLoading, isError, refetch } = useQuery<PortafolioData | null>({
     queryKey: ['reglas-portafolio', tenantId],
     queryFn: () =>
       api.get<PortafolioData>(`reglas/portafolio?tenantId=${tenantId}`)
-        .then(r => r.data)
-        .catch(() => null),
+        .then(r => r.data),
   })
 
   const { data: categoriasConfig = [] } = useQuery<CategoriaConfig[]>({
     queryKey: ['reglas-categorias', tenantId],
     queryFn: () =>
       api.get<CategoriaConfig[]>(`reglas/categorias?tenantId=${tenantId}`)
-        .then(r => r.data)
-        .catch(() => []),
+        .then(r => r.data),
   })
 
   const items: PortafolioItem[] = useMemo(() => portafolioData?.items ?? [], [portafolioData])
@@ -301,6 +510,15 @@ function PropiosTab({ tenantId }: { tenantId: string }) {
     items.reduce((sum, i) => sum + i.pesoProfitPool * 100, 0),
     [items],
   )
+
+  // Semáforo para el badge de Profit Pool
+  const profitPoolStatus = useMemo(() => {
+    if (items.length === 0) return null
+    const diff = Math.abs(totalPeso - 100)
+    if (diff <= 0.01) return 'green' as const
+    if (diff <= 5) return 'yellow' as const
+    return 'red' as const
+  }, [totalPeso, items.length])
 
   const filteredItems = useMemo(() => {
     const q = filterSku.toLowerCase()
@@ -320,6 +538,11 @@ function PropiosTab({ tenantId }: { tenantId: string }) {
       api.put(`reglas/portafolio?tenantId=${tenantId}`, { items: newItems }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['reglas-portafolio', tenantId] })
+      toast.success('Cambios guardados')
+    },
+    onError: (err: unknown) => {
+      const msg = err instanceof Error ? err.message : 'Error desconocido'
+      toast.error(`No se pudo guardar: ${msg}`)
     },
   })
 
@@ -366,7 +589,7 @@ function PropiosTab({ tenantId }: { tenantId: string }) {
     return items.map(i => i.ean).filter(e => e !== exclude)
   }, [items, modal])
 
-  if (isLoading) return <Spinner />
+  if (isError) return <QueryErrorState onRetry={refetch} />
 
   return (
     <div>
@@ -375,30 +598,43 @@ function PropiosTab({ tenantId }: { tenantId: string }) {
       </p>
 
       <div className="card mt-5">
-        <div className="mb-4 flex items-center gap-2">
+        <div className="mb-4 flex flex-wrap items-center gap-2">
           <SkuTableFilters
             categorias={Array.from(new Set(items.map(i => i.categoria))).sort()}
             filterCategoria={filterCategoria}
             filterSku={filterSku}
             onChange={(cat, sku) => { setFilterCategoria(cat); setFilterSku(sku); setPage(1) }}
           />
+
+          {/* Badge persistente de Profit Pool */}
+          {profitPoolStatus !== null && (
+            <span
+              className={`badge flex items-center gap-1 ${
+                profitPoolStatus === 'green'
+                  ? 'badge-green'
+                  : profitPoolStatus === 'yellow'
+                    ? 'badge-yellow'
+                    : 'badge-red'
+              }`}
+              aria-label={`Peso Profit Pool total: ${totalPeso.toFixed(2)}%`}
+            >
+              {profitPoolStatus === 'green'
+                ? <CheckCircle size={11} aria-hidden />
+                : <AlertTriangle size={11} aria-hidden />}
+              Profit Pool: {totalPeso.toFixed(2)}%
+            </span>
+          )}
+
           <button
             onClick={() => setModal({ mode: 'add' })}
-            className="btn-secondary text-xs flex items-center gap-1 py-1.5 ml-auto"
+            className="btn-secondary text-xs flex items-center gap-1 py-1.5 sm:ml-auto w-full sm:w-auto justify-center"
           >
             <Plus size={13} /> Agregar
           </button>
         </div>
 
-        {Math.abs(totalPeso - 100) > 0.01 && items.length > 0 && (
-          <p className="text-xs text-amber-500 flex items-center gap-1 mb-3">
-            <AlertTriangle size={12} />
-            La suma de Pesos Profit Pool es {totalPeso.toFixed(2)}% (se espera 100%)
-          </p>
-        )}
-
         <div className="overflow-x-auto">
-          <table className="data-table w-full">
+          <table className="data-table w-full min-w-[640px]">
             <thead>
               <tr>
                 <th className="text-left">SKU</th>
@@ -411,38 +647,52 @@ function PropiosTab({ tenantId }: { tenantId: string }) {
               </tr>
             </thead>
             <tbody>
-              {pageItems.map(item => (
-                <tr key={item.skuId}>
-                  <td className="text-xs text-p-muted font-mono">{item.ean}</td>
-                  <td className="text-sm font-medium text-p-dark">{item.nombre}</td>
-                  <td className="text-xs text-p-gray">{item.marca}</td>
-                  <td className="text-xs text-p-gray">{item.categoria}</td>
-                  <td className="text-right text-sm text-p-dark">${item.pvpSugerido.toLocaleString('es-CO')}</td>
-                  <td className="text-right text-sm text-p-gray">${item.costoVariable.toLocaleString('es-CO')}</td>
-                  <td>
-                    <div className="flex items-center justify-end gap-2">
-                      <button
-                        onClick={() => setModal({ mode: 'edit', item })}
-                        className="text-p-muted hover:text-p-dark transition-colors"
-                      >
-                        <Pencil size={13} />
-                      </button>
-                      <button
-                        onClick={() => setConfirmDelete(item)}
-                        className="text-p-muted hover:text-p-red transition-colors"
-                      >
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {pageItems.length === 0 && (
+              {isLoading ? (
+                <SkeletonTable rows={5} columns={7} />
+              ) : pageItems.length > 0 ? (
+                pageItems.map(item => (
+                  <tr key={item.skuId}>
+                    <td className="text-xs text-p-muted font-mono">{item.ean}</td>
+                    <td className="text-sm font-medium text-p-dark">{item.nombre}</td>
+                    <td className="text-xs text-p-gray">{item.marca}</td>
+                    <td className="text-xs text-p-gray">{item.categoria}</td>
+                    <td className="text-right text-sm text-p-dark">${item.pvpSugerido.toLocaleString('es-CO')}</td>
+                    <td className="text-right text-sm text-p-gray">${item.costoVariable.toLocaleString('es-CO')}</td>
+                    <td>
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => setModal({ mode: 'edit', item })}
+                          aria-label={`Editar ${item.nombre}`}
+                          className="btn-icon text-p-muted hover:text-p-dark"
+                        >
+                          <Pencil size={13} aria-hidden />
+                        </button>
+                        <button
+                          onClick={() => setConfirmDelete(item)}
+                          aria-label={`Eliminar ${item.nombre}`}
+                          className="btn-icon text-p-muted hover:text-p-red hover:bg-red-50"
+                        >
+                          <Trash2 size={13} aria-hidden />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              ) : (
                 <tr>
-                  <td colSpan={7} className="text-center text-sm text-p-muted py-8">
-                    {items.length === 0
-                      ? 'Sin productos — usa el botón Agregar o carga desde Importaciones.'
-                      : 'Sin resultados para los filtros aplicados.'}
+                  <td colSpan={7}>
+                    {items.length === 0 ? (
+                      <EmptyState
+                        title="Sin productos"
+                        description="Usa el botón Agregar o carga desde la pestaña Importaciones."
+                        action={{ label: 'Agregar producto', onClick: () => setModal({ mode: 'add' }) }}
+                      />
+                    ) : (
+                      <EmptyState
+                        title="Sin resultados"
+                        description="Ningún producto coincide con los filtros aplicados."
+                      />
+                    )}
                   </td>
                 </tr>
               )}
@@ -450,7 +700,21 @@ function PropiosTab({ tenantId }: { tenantId: string }) {
           </table>
         </div>
 
-        <div className="flex items-center justify-between mt-3 pt-3 border-t border-p-border">
+        {/* Aviso de Profit Pool debajo de la tabla cuando hay desviación */}
+        {profitPoolStatus !== null && profitPoolStatus !== 'green' && (
+          <p
+            className={`text-xs flex items-center gap-1 mt-3 pt-3 border-t border-p-border ${
+              profitPoolStatus === 'yellow' ? 'text-amber-600' : 'text-p-red'
+            }`}
+            role="status"
+            aria-live="polite"
+          >
+            <AlertTriangle size={12} aria-hidden />
+            Peso Profit Pool total: {totalPeso.toFixed(2)}% — debería sumar 100%
+          </p>
+        )}
+
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mt-3 pt-3 border-t border-p-border">
           <span className="text-sm text-p-muted">
             {safePage} / {totalPages} — {filteredItems.length} producto{filteredItems.length !== 1 ? 's' : ''}
           </span>
@@ -500,6 +764,7 @@ function PropiosTab({ tenantId }: { tenantId: string }) {
           existingEans={existingEansForModal}
           categorias={categorias}
           totalPesoActual={totalPeso}
+          tenantId={tenantId}
           onSave={handleSave}
           onClose={() => setModal(null)}
         />

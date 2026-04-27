@@ -1,18 +1,26 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { useUrlParam } from '../../lib/useUrlState'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { AlertTriangle, Save, Search } from 'lucide-react'
+import { AlertTriangle, Save, Search, FileDown } from 'lucide-react'
 import api from '../../lib/api'
+import { downloadTemplate } from '../../lib/downloadTemplate'
 import type { ElasticidadItem, PortafolioData, PortafolioItem } from '../../lib/types'
 import Spinner from '../../components/Spinner'
+import QueryErrorState from '../../components/QueryErrorState'
 import SoloPrisierBadge from '../../components/SoloPrisierBadge'
+import { useToast } from '../../components/useToast'
+import { elasticidadItemSchema } from '../../schemas/reglas'
+import { useAuth } from '../../lib/auth'
 
 // ─── ElasticidadTab (R-004) ───────────────────────────────────────────────────
 
 function ElasticidadTab({ tenantId }: { tenantId: string }) {
   const queryClient = useQueryClient()
+  const toast = useToast()
+  const { user } = useAuth()
+  const isAdmin = user?.rol === 'admin'
 
-  const { data = [], isLoading } = useQuery<ElasticidadItem[]>({
+  const { data = [], isLoading, isError, refetch } = useQuery<ElasticidadItem[]>({
     queryKey: ['reglas-elasticidad', tenantId],
     queryFn: () => api.get<ElasticidadItem[]>(`reglas/elasticidad?tenantId=${tenantId}`).then(r => r.data),
   })
@@ -28,6 +36,7 @@ function ElasticidadTab({ tenantId }: { tenantId: string }) {
   const [searchText, setSearchText] = useUrlParam('q')
   const [coefInput, setCoefInput] = useState('')
   const [isDirty, setIsDirty] = useState(false)
+  const [coefError, setCoefError] = useState<string | null>(null)
   const pendingCoef = useRef<number | null>(null)
 
   const portafolioMap = useMemo(() => {
@@ -73,11 +82,16 @@ function ElasticidadTab({ tenantId }: { tenantId: string }) {
       queryClient.invalidateQueries({ queryKey: ['reglas-elasticidad', tenantId] })
       setIsDirty(false)
       pendingCoef.current = null
+      toast.success('Cambios guardados')
+    },
+    onError: (err: unknown) => {
+      toast.error('No se pudo guardar: ' + (err instanceof Error ? err.message : 'Error desconocido'))
     },
   })
 
   const handleCoefChange = (raw: string) => {
     setCoefInput(raw)
+    setCoefError(null)
     const v = parseFloat(raw)
     if (!isNaN(v)) {
       pendingCoef.current = v
@@ -87,6 +101,19 @@ function ElasticidadTab({ tenantId }: { tenantId: string }) {
 
   const handleSave = () => {
     if (!selectedSkuId || !isDirty || pendingCoef.current === null) return
+
+    // Validación al borde antes del PATCH
+    const result = elasticidadItemSchema.safeParse({
+      skuId: selectedSkuId,
+      coeficiente: pendingCoef.current,
+    })
+    if (!result.success) {
+      const msg = result.error.issues[0]?.message ?? 'Error de validación'
+      setCoefError(msg)
+      return
+    }
+    setCoefError(null)
+
     const newItems = data.map(e =>
       e.skuId === selectedSkuId ? { ...e, coeficiente: pendingCoef.current! } : e
     )
@@ -115,21 +142,34 @@ function ElasticidadTab({ tenantId }: { tenantId: string }) {
     return () => window.removeEventListener('beforeunload', handler)
   }, [isDirty])
 
+  if (isError) return <QueryErrorState onRetry={refetch} />
   if (isLoading) return <Spinner />
 
   return (
     <div>
-      <div className="flex items-center gap-3 mb-4">
+      <div className="flex items-center gap-3 mb-4 flex-wrap">
         <p className="text-sm text-p-gray flex-1">
           Coeficientes de elasticidad por SKU. Negativos indican relación inversa (precio sube → demanda baja).
           Rango: 0 a -1 = poco elástico, -1 a -1.8 = elástico, &lt; -1.8 = muy elástico.
         </p>
+        <button
+          onClick={() => downloadTemplate(
+            'elasticidad.xlsx',
+            'Elasticidad',
+            ['EAN', 'Coeficiente Elasticidad'],
+            { 'EAN': '7702001234567', 'Coeficiente Elasticidad': -1.2 },
+          )}
+          aria-label="Descargar plantilla de elasticidad"
+          className="btn-secondary text-xs flex items-center gap-1 py-1.5"
+        >
+          <FileDown size={13} aria-hidden /> Descargar plantilla
+        </button>
         <SoloPrisierBadge />
       </div>
 
-      <div className="flex gap-4 items-start">
+      <div className="flex flex-col md:flex-row gap-4 items-start">
         {/* Panel izquierdo — lista de SKUs */}
-        <div className="card w-72 flex-shrink-0 p-0 overflow-hidden">
+        <div className="card w-full md:w-72 md:flex-shrink-0 p-0 overflow-hidden">
           <div className="px-3 pt-3 pb-2 border-b border-p-border space-y-2">
             <select
               value={filterCat}
@@ -192,14 +232,25 @@ function ElasticidadTab({ tenantId }: { tenantId: string }) {
               <p className="text-xs font-semibold text-p-gray uppercase tracking-wide mb-4">
                 Coeficiente de elasticidad (ε)
               </p>
-              <div className="flex items-center gap-4 mb-4">
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  value={coefInput}
-                  onChange={e => handleCoefChange(e.target.value)}
-                  className="form-input py-2 text-2xl text-center font-mono w-36"
-                />
+              <div className="flex items-center gap-4 mb-2">
+                <div>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={coefInput}
+                    onChange={e => handleCoefChange(e.target.value)}
+                    disabled={!isAdmin}
+                    readOnly={!isAdmin}
+                    aria-invalid={!!coefError}
+                    aria-describedby={coefError ? 'elasticidad-coef-error' : undefined}
+                    className="form-input py-2 text-2xl text-center font-mono w-36 disabled:bg-p-surface disabled:cursor-not-allowed"
+                  />
+                  {coefError && (
+                    <p id="elasticidad-coef-error" className="text-xs text-p-red mt-1" role="alert">
+                      {coefError}
+                    </p>
+                  )}
+                </div>
                 <span className={`text-sm ${badgeCls(liveCoef)}`}>
                   {interpretacion(liveCoef)}
                 </span>
@@ -207,10 +258,10 @@ function ElasticidadTab({ tenantId }: { tenantId: string }) {
               <p className="text-xs text-p-muted mb-4">
                 Valores guía: -0.5 = poco elástico · -1.2 = elástico · -2.1 = muy elástico
               </p>
-              {isDirty && (
+              {isDirty && isAdmin && (
                 <div className="flex items-center justify-end gap-3 pt-3 border-t border-p-border">
                   <span className="text-xs text-p-yellow flex items-center gap-1">
-                    <AlertTriangle size={12} /> Sin guardar
+                    <AlertTriangle size={12} aria-hidden /> Sin guardar
                   </span>
                   <button
                     onClick={handleSave}

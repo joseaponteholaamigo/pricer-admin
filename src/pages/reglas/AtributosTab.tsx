@@ -1,18 +1,23 @@
 import { useState } from 'react'
 import { useUrlParam } from '../../lib/useUrlState'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { AlertTriangle } from 'lucide-react'
+import { AlertTriangle, FileDown } from 'lucide-react'
 import api from '../../lib/api'
+import { downloadTemplate } from '../../lib/downloadTemplate'
 import type { CategoriaAtributos, AtributoCategoria } from '../../lib/types'
 import Spinner from '../../components/Spinner'
+import QueryErrorState from '../../components/QueryErrorState'
 import SaveBar from '../../components/SaveBar'
 import SearchableSelect from '../../components/SearchableSelect'
+import { useToast } from '../../components/useToast'
+import { atributosSchema } from '../../schemas/reglas'
 
 // ─── AtributosTab (R-002 — parte a: atributos + pesos) ───────────────────────
 
 function AtributosTab({ tenantId }: { tenantId: string }) {
   const queryClient = useQueryClient()
-  const { data = [], isLoading } = useQuery<CategoriaAtributos[]>({
+  const toast = useToast()
+  const { data = [], isLoading, isError, refetch } = useQuery<CategoriaAtributos[]>({
     queryKey: ['reglas-atributos', tenantId],
     queryFn: () => api.get<CategoriaAtributos[]>(`reglas/atributos?tenantId=${tenantId}`).then(r => r.data),
   })
@@ -38,24 +43,57 @@ function AtributosTab({ tenantId }: { tenantId: string }) {
   const sumaPesos = currentAtributos.reduce((acc, a) => acc + Number(a.peso), 0)
   const pesoError = Math.abs(sumaPesos - 1.0) > 0.01
 
+  // Validación al borde antes del PATCH
+  const [zodError, setZodError] = useState<string | null>(null)
+
   const mutation = useMutation({
     mutationFn: () => api.put(`reglas/atributos?tenantId=${tenantId}`, { categoria, atributos: currentAtributos }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['reglas-atributos', tenantId] })
-
+      setZodError(null)
       setAtributos(null)
+      toast.success('Cambios guardados')
+    },
+    onError: (err: unknown) => {
+      toast.error('No se pudo guardar: ' + (err instanceof Error ? err.message : 'Error desconocido'))
     },
   })
 
+  const handleSave = () => {
+    const result = atributosSchema.safeParse({ atributos: currentAtributos })
+    if (!result.success) {
+      const msg = result.error.issues[0]?.message ?? 'Error de validación'
+      setZodError(msg)
+      return
+    }
+    setZodError(null)
+    mutation.mutate()
+  }
+
   const categorias = data.map(d => d.categoria)
 
+  if (isError) return <QueryErrorState onRetry={refetch} />
   if (isLoading) return <Spinner />
 
   return (
     <div>
-      <p className="text-sm text-p-gray mb-4">
-        Configura los 5 atributos de valor percibido por categoría. Los pesos deben sumar 100% (precisión 10 decimales).
-      </p>
+      <div className="flex items-start justify-between gap-3 mb-4">
+        <p className="text-sm text-p-gray flex-1">
+          Configura los 5 atributos de valor percibido por categoría. Los pesos deben sumar 100% (precisión 10 decimales).
+        </p>
+        <button
+          onClick={() => downloadTemplate(
+            'atributos.xlsx',
+            'Atributos',
+            ['Categoría', 'Atributo', 'Peso (%)'],
+            { 'Categoría': 'Gaseosas', 'Atributo': 'Sabor', 'Peso (%)': 25 },
+          )}
+          aria-label="Descargar plantilla de atributos"
+          className="btn-secondary text-xs flex items-center gap-1 py-1.5 flex-shrink-0"
+        >
+          <FileDown size={13} aria-hidden /> Descargar plantilla
+        </button>
+      </div>
 
       {/* Selector de categoría */}
       <div className="mb-4">
@@ -70,12 +108,12 @@ function AtributosTab({ tenantId }: { tenantId: string }) {
       {/* Tabla de atributos */}
       {currentAtributos.length > 0 ? (
         <div className="card">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
             <span className="text-sm font-medium text-p-dark">{categoria}</span>
             <div className="flex items-center gap-3">
               {pesoError && (
-                <span className="text-xs text-p-red flex items-center gap-1">
-                  <AlertTriangle size={13} /> Suman {(sumaPesos * 100).toFixed(2)}% (deben ser 100%)
+                <span className="text-xs text-p-red flex items-center gap-1" role="alert">
+                  <AlertTriangle size={13} aria-hidden /> Suman {(sumaPesos * 100).toFixed(2)}% (deben ser 100%)
                 </span>
               )}
               <span className={`text-lg font-bold ${pesoError ? 'text-p-red' : 'text-p-lime'}`}>
@@ -84,7 +122,8 @@ function AtributosTab({ tenantId }: { tenantId: string }) {
             </div>
           </div>
 
-          <table className="data-table w-full">
+          <div className="overflow-x-auto">
+          <table className="data-table w-full min-w-[320px]">
             <thead>
               <tr>
                 <th className="text-left w-6">#</th>
@@ -128,6 +167,7 @@ function AtributosTab({ tenantId }: { tenantId: string }) {
               </tr>
             </tfoot>
           </table>
+          </div>
         </div>
       ) : (
         <div className="flex items-center justify-center h-40 text-sm text-p-muted border border-dashed border-p-border rounded-xl">
@@ -135,7 +175,12 @@ function AtributosTab({ tenantId }: { tenantId: string }) {
         </div>
       )}
 
-      <SaveBar onSave={() => mutation.mutate()} saving={mutation.isPending} dirty={dirty && !pesoError} />
+      {zodError && (
+        <p className="text-xs text-p-red flex items-center gap-1 mt-3" role="alert" aria-live="polite">
+          <AlertTriangle size={12} aria-hidden /> {zodError}
+        </p>
+      )}
+      <SaveBar onSave={handleSave} saving={mutation.isPending} dirty={dirty && !pesoError} />
     </div>
   )
 }

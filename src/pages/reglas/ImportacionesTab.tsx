@@ -3,19 +3,23 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Download, Upload, ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react'
 import api from '../../lib/api'
 import type { ImportacionRecord } from '../../lib/types'
-import Spinner from '../../components/Spinner'
+import { SkeletonTable } from '../../components/Skeleton'
+import QueryErrorState from '../../components/QueryErrorState'
+import EmptyState from '../../components/EmptyState'
+import { useToast } from '../../components/useToast'
 import { downloadBlob } from '../../lib/download'
 
 // ─── ImportacionesTab ─────────────────────────────────────────────────────────
 
 function ImportacionesTab({ tenantId }: { tenantId: string }) {
   const queryClient = useQueryClient()
+  const toast = useToast()
   const inputRef = useRef<HTMLInputElement>(null)
   const [isDragOver, setIsDragOver] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [expanded, setExpanded] = useState<string | null>(null)
 
-  const { data: historial = [], isLoading } = useQuery<ImportacionRecord[]>({
+  const { data: historial = [], isLoading, isError, refetch } = useQuery<ImportacionRecord[]>({
     queryKey: ['reglas-importaciones', tenantId],
     queryFn: () => api.get<ImportacionRecord[]>(`reglas/portafolio/importaciones?tenantId=${tenantId}`).then(r => r.data),
   })
@@ -38,10 +42,13 @@ function ImportacionesTab({ tenantId }: { tenantId: string }) {
       })
       queryClient.invalidateQueries({ queryKey: ['reglas-importaciones', tenantId] })
       queryClient.invalidateQueries({ queryKey: ['reglas-portafolio', tenantId] })
-    } catch { /* silent */ } finally {
+      toast.success('Archivo importado correctamente')
+    } catch (err) {
+      toast.error('No se pudo importar: ' + (err instanceof Error ? err.message : 'Error desconocido'))
+    } finally {
       setUploading(false)
     }
-  }, [tenantId, queryClient])
+  }, [tenantId, queryClient, toast])
 
   const onDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -98,10 +105,11 @@ function ImportacionesTab({ tenantId }: { tenantId: string }) {
       {/* Historial */}
       <div className="card mt-6">
         <h3 className="text-sm font-semibold text-p-dark mb-4">Historial de importaciones</h3>
-        {isLoading ? <Spinner /> : historial.length === 0 ? (
-          <p className="text-sm text-p-muted text-center py-6">Sin importaciones registradas.</p>
+        {isError ? (
+          <QueryErrorState onRetry={refetch} />
         ) : (
-          <table className="data-table w-full">
+          <div className="overflow-x-auto">
+          <table className="data-table w-full min-w-[560px]">
             <thead>
               <tr>
                 <th className="text-left">Fecha</th>
@@ -113,7 +121,18 @@ function ImportacionesTab({ tenantId }: { tenantId: string }) {
               </tr>
             </thead>
             <tbody>
-              {historial.map(imp => (
+              {isLoading ? (
+                <SkeletonTable rows={3} columns={6} />
+              ) : historial.length === 0 ? (
+                <tr>
+                  <td colSpan={6}>
+                    <EmptyState
+                      title="Sin importaciones"
+                      description="Aún no se ha cargado ningún archivo. Usa la zona de arrastre para importar el portafolio."
+                    />
+                  </td>
+                </tr>
+              ) : historial.map(imp => (
                 <Fragment key={imp.id}>
                   <tr>
                     <td className="text-sm text-p-dark whitespace-nowrap">
@@ -131,9 +150,13 @@ function ImportacionesTab({ tenantId }: { tenantId: string }) {
                       {imp.errores.length > 0 && (
                         <button
                           onClick={() => setExpanded(expanded === imp.id ? null : imp.id)}
-                          className="text-p-muted hover:text-p-dark transition-colors"
+                          aria-label={expanded === imp.id ? 'Colapsar errores' : 'Expandir errores'}
+                          aria-expanded={expanded === imp.id}
+                          className="btn-icon text-p-muted hover:text-p-dark"
                         >
-                          {expanded === imp.id ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+                          {expanded === imp.id
+                            ? <ChevronUp size={15} aria-hidden />
+                            : <ChevronDown size={15} aria-hidden />}
                         </button>
                       )}
                     </td>
@@ -146,7 +169,7 @@ function ImportacionesTab({ tenantId }: { tenantId: string }) {
                           <ul className="space-y-1">
                             {imp.errores.map((e, i) => (
                               <li key={i} className="text-xs text-p-yellow flex items-start gap-2">
-                                <AlertTriangle size={12} className="shrink-0 mt-0.5" />
+                                <AlertTriangle size={12} aria-hidden className="shrink-0 mt-0.5" />
                                 {e}
                               </li>
                             ))}
@@ -159,6 +182,7 @@ function ImportacionesTab({ tenantId }: { tenantId: string }) {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     </div>

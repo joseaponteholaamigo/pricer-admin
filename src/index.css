@@ -44,15 +44,24 @@
   /* Buttons */
   .btn-primary {
     @apply inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold
-           bg-p-lime text-p-dark hover:bg-p-lime-light transition-colors shadow-sm;
+           bg-p-lime text-p-dark hover:bg-p-lime-light transition-colors shadow-sm
+           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-p-lime/60 focus-visible:ring-offset-1;
   }
   .btn-secondary {
     @apply inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium
-           border border-p-border text-p-gray hover:bg-gray-50 transition-colors;
+           border border-p-border text-p-gray hover:bg-gray-50 transition-colors
+           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-p-lime/40 focus-visible:ring-offset-1;
   }
   .btn-danger {
     @apply inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium
-           bg-p-red/10 text-p-red border border-p-red/20 hover:bg-p-red/20 transition-colors;
+           bg-p-red/10 text-p-red border border-p-red/20 hover:bg-p-red/20 transition-colors
+           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-p-red/40 focus-visible:ring-offset-1;
+  }
+
+  /* Botones icónicos sueltos en tablas (Pencil, Trash2, etc.) */
+  .btn-icon {
+    @apply p-1.5 rounded transition-colors
+           focus-visible:outline-none focus-visible:outline-2 focus-visible:outline-p-lime/60;
   }
 
   /* Form inputs */
@@ -74,15 +83,15 @@
     @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold;
   }
   .badge-green {
-    @apply bg-green-50 text-green-700 border border-green-200;
+    @apply bg-p-lime/15 text-p-lime border border-p-lime/30;
   }
   .badge-yellow {
-    @apply bg-amber-50 text-amber-700 border border-amber-200;
+    @apply bg-p-yellow/15 text-p-dark border border-p-yellow/30;
   }
   .badge-red {
-    @apply bg-red-50 text-red-700 border border-red-200;
+    @apply bg-p-red/10 text-p-red border border-p-red/25;
   }
   .badge-blue {
-    @apply bg-blue-50 text-blue-700 border border-blue-200;
+    @apply bg-p-blue/10 text-p-blue border border-p-blue/25;
   }
 }

@@ -11,6 +11,7 @@ export default {
           bg: '#f5f5f0',
           sidebar: '#ffffff',
           panel: '#ffffff',
+          surface: '#ebebe6',
           lime: '#AEC911',
           'lime-light': '#c5dd3a',
           'lime-bg': 'rgba(174, 201, 17, 0.08)',

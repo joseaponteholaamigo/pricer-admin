@@ -1,6 +1,16 @@
 import { useSearchParams } from 'react-router-dom'
 import { useCallback } from 'react'
 
+// El `prev` que React Router pasa al updater viene de un ref que solo se
+// actualiza en el siguiente render. Si se disparan dos setSearchParams en el
+// mismo tick (ej. setFilterText + setPage), ambos parten del mismo estado y
+// el último navigate gana, wipeando los cambios del primero. Leer de
+// window.location.search esquiva ese ref porque history.replaceState lo
+// actualiza síncronamente.
+function latestParams(): URLSearchParams {
+  return new URLSearchParams(window.location.search)
+}
+
 /**
  * Persiste un string en la URL. Guardar '' o el mismo valor que defaultValue
  * elimina el key para mantener URLs limpias.
@@ -16,8 +26,8 @@ export function useUrlParam(
   const setValue = useCallback(
     (v: string) => {
       setSearchParams(
-        prev => {
-          const next = new URLSearchParams(prev)
+        () => {
+          const next = latestParams()
           if (v === '' || v === defaultValue) {
             next.delete(key)
           } else {
@@ -50,8 +60,8 @@ export function useUrlNumber(
   const setValue = useCallback(
     (v: number) => {
       setSearchParams(
-        prev => {
-          const next = new URLSearchParams(prev)
+        () => {
+          const next = latestParams()
           if (v === defaultValue) {
             next.delete(key)
           } else {

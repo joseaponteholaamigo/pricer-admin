@@ -26,6 +26,17 @@ function SearchableSelect({ options, value, onChange, placeholder = 'Seleccionar
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && open) {
+        setOpen(false)
+        setSearch('')
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [open])
+
   const filtered = options.filter(o => o.toLowerCase().includes(search.toLowerCase()))
 
   const select = (v: string) => {
@@ -39,17 +50,28 @@ function SearchableSelect({ options, value, onChange, placeholder = 'Seleccionar
       <button
         type="button"
         onClick={() => setOpen(o => !o)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label={value ? `Seleccionado: ${value}. Abrir lista` : placeholder}
         className="form-input w-full flex items-center justify-between px-3 py-1.5 gap-2 cursor-pointer"
       >
         <span className={value ? 'text-p-dark' : 'text-p-muted'}>{value || placeholder}</span>
-        <ChevronDown size={14} className={`text-p-muted shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+        <ChevronDown
+          size={14}
+          aria-hidden
+          className={`text-p-muted shrink-0 transition-transform ${open ? 'rotate-180' : ''}`}
+        />
       </button>
 
       {open && (
-        <div className="absolute z-30 top-full left-0 mt-1 w-full min-w-56 bg-white border border-p-border rounded-lg shadow-lg">
+        <div
+          role="listbox"
+          aria-label="Opciones"
+          className="absolute z-30 top-full left-0 mt-1 w-full min-w-56 bg-white border border-p-border rounded-lg shadow-lg"
+        >
           <div className="p-2 border-b border-p-border">
             <div className="relative">
-              <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-p-muted pointer-events-none" />
+              <Search size={12} aria-hidden className="absolute left-2.5 top-1/2 -translate-y-1/2 text-p-muted pointer-events-none" />
               <input
                 autoFocus
                 type="text"
@@ -65,7 +87,7 @@ function SearchableSelect({ options, value, onChange, placeholder = 'Seleccionar
               <li className="px-3 py-3 text-xs text-p-muted text-center">Sin resultados</li>
             )}
             {filtered.map(o => (
-              <li key={o}>
+              <li key={o} role="option" aria-selected={o === value}>
                 <button
                   onClick={() => select(o)}
                   className={`w-full text-left px-3 py-1.5 text-sm transition-colors ${

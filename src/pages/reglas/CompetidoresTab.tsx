@@ -1,15 +1,19 @@
 import { useState, useMemo } from 'react'
 import { useUrlParam } from '../../lib/useUrlState'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Trash2, Search } from 'lucide-react'
+import { Plus, Trash2, Search, FileDown } from 'lucide-react'
 import api from '../../lib/api'
+import { downloadTemplate } from '../../lib/downloadTemplate'
 import type { PortafolioData, PortafolioItem, SkuCompetencia, SkuVinculacion, VinculacionesMapeo } from '../../lib/types'
 import Spinner from '../../components/Spinner'
+import QueryErrorState from '../../components/QueryErrorState'
+import { useToast } from '../../components/useToast'
 
 // ─── CompetidoresTab (vinculación SKU propio → SKUs competidores) ─────────────
 
 function CompetidoresTab({ tenantId }: { tenantId: string }) {
   const queryClient = useQueryClient()
+  const toast = useToast()
 
   const { data: portafolioData, isLoading: loadingPortafolio } = useQuery<PortafolioData | null>({
     queryKey: ['reglas-portafolio', tenantId],
@@ -21,9 +25,9 @@ function CompetidoresTab({ tenantId }: { tenantId: string }) {
     queryFn: () => api.get<SkuCompetencia[]>(`reglas/skus-competencia?tenantId=${tenantId}`).then(r => r.data).catch(() => []),
   })
 
-  const { data: rawMapeo, isLoading: loadingVinc } = useQuery<VinculacionesMapeo>({
+  const { data: rawMapeo, isLoading: loadingVinc, isError: errorVinc, refetch: refetchVinc } = useQuery<VinculacionesMapeo>({
     queryKey: ['reglas-vinculaciones', tenantId],
-    queryFn: () => api.get<VinculacionesMapeo>(`reglas/vinculaciones?tenantId=${tenantId}`).then(r => r.data).catch(() => ({})),
+    queryFn: () => api.get<VinculacionesMapeo>(`reglas/vinculaciones?tenantId=${tenantId}`).then(r => r.data),
   })
 
   const propios: PortafolioItem[] = useMemo(() => portafolioData?.items ?? [], [portafolioData])
@@ -70,6 +74,10 @@ function CompetidoresTab({ tenantId }: { tenantId: string }) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['reglas-vinculaciones', tenantId] })
       setMapeo(null)
+      toast.success('Cambios guardados')
+    },
+    onError: (err: unknown) => {
+      toast.error('No se pudo guardar: ' + (err instanceof Error ? err.message : 'Error desconocido'))
     },
   })
 
@@ -99,17 +107,39 @@ function CompetidoresTab({ tenantId }: { tenantId: string }) {
     return true
   })
 
+  if (errorVinc) return <QueryErrorState onRetry={refetchVinc} />
   if (loadingPortafolio || loadingComp || loadingVinc) return <Spinner />
 
   return (
     <div>
-      <p className="text-sm text-p-gray mb-4">
-        Vincula cada SKU propio con los SKUs (propios o de competencia) contra los que se compara en el análisis de precios.
-      </p>
+      <div className="flex items-start justify-between gap-3 mb-4">
+        <p className="text-sm text-p-gray flex-1">
+          Vincula cada SKU propio con los SKUs (propios o de competencia) contra los que se compara en el análisis de precios.
+        </p>
+        <button
+          onClick={() => downloadTemplate(
+            'competidores.xlsx',
+            'Competidores',
+            ['EAN Propio', 'EAN Competidor', 'Marca Competidor', 'Retailer', 'País', 'Es Principal'],
+            {
+              'EAN Propio': '7702001234567',
+              'EAN Competidor': '7750232000156',
+              'Marca Competidor': 'Pepsi',
+              'Retailer': 'Éxito',
+              'País': 'Colombia',
+              'Es Principal': 'Si',
+            },
+          )}
+          aria-label="Descargar plantilla de competidores"
+          className="btn-secondary text-xs flex items-center gap-1 py-1.5 flex-shrink-0"
+        >
+          <FileDown size={13} aria-hidden /> Descargar plantilla
+        </button>
+      </div>
 
-      <div className="flex gap-4 items-start">
+      <div className="flex flex-col md:flex-row gap-4 items-start">
         {/* Panel izquierdo — lista de SKUs propios */}
-        <div className="card w-72 flex-shrink-0 p-0 overflow-hidden">
+        <div className="card w-full md:w-72 md:flex-shrink-0 p-0 overflow-hidden">
           <div className="px-3 pt-3 pb-2 border-b border-p-border space-y-2">
             <select
               value={filterCat}
@@ -190,9 +220,10 @@ function CompetidoresTab({ tenantId }: { tenantId: string }) {
                       </div>
                       <button
                         onClick={() => removeVinculacion(v.id)}
-                        className="flex-shrink-0 text-p-muted hover:text-p-red transition-colors"
+                        aria-label={`Quitar vinculación ${getLabel(v)}`}
+                        className="btn-icon flex-shrink-0 text-p-muted hover:text-p-red hover:bg-red-50"
                       >
-                        <Trash2 size={13} />
+                        <Trash2 size={13} aria-hidden />
                       </button>
                     </div>
                   ))}

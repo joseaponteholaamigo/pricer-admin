@@ -4,6 +4,12 @@ import { Plus, Pencil, UserPlus, X, PowerOff } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import api from '../lib/api'
 import type { TenantListItem, ConsultorInfo, UserListItem } from '../lib/types'
+import { INDUSTRIAS, PLANES, ESTADOS_TENANT } from '../shared/catalog'
+
+interface DesactivarConfirm {
+  tenant: TenantListItem
+  usuariosActivos: number
+}
 
 interface TenantForm {
   nombre: string
@@ -17,15 +23,26 @@ export default function TenantsPage() {
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [assignTenantId, setAssignTenantId] = useState<string | null>(null)
-  const [confirmDesactivar, setConfirmDesactivar] = useState<TenantListItem | null>(null)
+  const [confirmDesactivar, setConfirmDesactivar] = useState<DesactivarConfirm | null>(null)
 
   const { data: tenants = [], isLoading } = useQuery({
     queryKey: ['tenants'],
     queryFn: () => api.get<TenantListItem[]>('/tenants').then(r => r.data),
   })
 
+  const { data: allUsers = [] } = useQuery<UserListItem[]>({
+    queryKey: ['users'],
+    queryFn: () => api.get<UserListItem[]>('/users').then(r => r.data),
+    staleTime: 30_000,
+  })
+
+  const handleRequestDesactivar = (t: TenantListItem) => {
+    const usuariosActivos = allUsers.filter(u => u.tenantId === t.id && u.estado === 'activo').length
+    setConfirmDesactivar({ tenant: t, usuariosActivos })
+  }
+
   const { register, handleSubmit, reset, setValue } = useForm<TenantForm>({
-    defaultValues: { industria: 'consumo_masivo', plan: 'basico', estado: 'activo' },
+    defaultValues: { industria: 'consumo_masivo', plan: 'starter', estado: 'activo' },
   })
 
   const toggleEstadoMutation = useMutation({
@@ -33,6 +50,7 @@ export default function TenantsPage() {
       api.patch(`/tenants/${id}/estado`, { estado }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tenants'] })
+      queryClient.invalidateQueries({ queryKey: ['users'] })
       setConfirmDesactivar(null)
     },
   })
@@ -109,22 +127,26 @@ export default function TenantsPage() {
               <div>
                 <label className="form-label">Industria</label>
                 <select {...register('industria')} className="form-input">
-                  <option value="consumo_masivo">Consumo Masivo</option>
-                  <option value="educacion">Educación</option>
-                  <option value="moda">Moda</option>
+                  {INDUSTRIAS.map(o => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
                 </select>
               </div>
               <div>
                 <label className="form-label">Plan</label>
-                <input {...register('plan', { required: true })} className="form-input" />
+                <select {...register('plan', { required: true })} className="form-input">
+                  {PLANES.map(o => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
               </div>
               {editingId && (
                 <div>
                   <label className="form-label">Estado</label>
                   <select {...register('estado')} className="form-input">
-                    <option value="activo">Activo</option>
-                    <option value="inactivo">Inactivo</option>
-                    <option value="suspendido">Suspendido</option>
+                    {ESTADOS_TENANT.map(o => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
+                    ))}
                   </select>
                 </div>
               )}
@@ -154,10 +176,20 @@ export default function TenantsPage() {
       {confirmDesactivar && (
         <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="card p-6 w-full max-w-sm shadow-xl space-y-4">
-            <h2 className="text-base font-semibold text-p-dark">¿Desactivar {confirmDesactivar.nombre}?</h2>
-            <p className="text-sm text-p-gray">
-              Todos los usuarios de este cliente perderán el acceso inmediatamente. Esta acción se puede revertir.
-            </p>
+            <h2 className="text-base font-semibold text-p-dark">
+              ¿Desactivar {confirmDesactivar.tenant.nombre}?
+            </h2>
+            {confirmDesactivar.usuariosActivos > 0 ? (
+              <p className="text-sm text-p-gray">
+                El tenant <span className="font-medium text-p-dark">{confirmDesactivar.tenant.nombre}</span> tiene{' '}
+                <span className="font-semibold text-p-red">{confirmDesactivar.usuariosActivos} usuario{confirmDesactivar.usuariosActivos !== 1 ? 's' : ''} activo{confirmDesactivar.usuariosActivos !== 1 ? 's' : ''}</span>.
+                {' '}Al desactivarlo perderán el acceso inmediatamente. Esta acción se puede revertir.
+              </p>
+            ) : (
+              <p className="text-sm text-p-gray">
+                El tenant quedará inactivo. Esta acción se puede revertir.
+              </p>
+            )}
             <div className="flex gap-3 justify-end">
               <button
                 onClick={() => setConfirmDesactivar(null)}
@@ -166,11 +198,11 @@ export default function TenantsPage() {
                 Cancelar
               </button>
               <button
-                onClick={() => toggleEstadoMutation.mutate({ id: confirmDesactivar.id, estado: 'inactivo' })}
+                onClick={() => toggleEstadoMutation.mutate({ id: confirmDesactivar.tenant.id, estado: 'inactivo' })}
                 disabled={toggleEstadoMutation.isPending}
                 className="px-4 py-1.5 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
               >
-                {toggleEstadoMutation.isPending ? 'Desactivando...' : 'Desactivar'}
+                {toggleEstadoMutation.isPending ? 'Desactivando...' : 'Desactivar de todas formas'}
               </button>
             </div>
           </div>
@@ -214,7 +246,7 @@ export default function TenantsPage() {
                     </button>
                     {t.estado === 'activo' ? (
                       <button
-                        onClick={() => setConfirmDesactivar(t)}
+                        onClick={() => handleRequestDesactivar(t)}
                         className="p-2 text-p-gray hover:text-p-red rounded-lg hover:bg-red-50 transition-colors"
                         title="Desactivar"
                       >

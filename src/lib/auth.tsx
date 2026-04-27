@@ -1,3 +1,5 @@
+// PARITY: este archivo se mantiene en paridad con su gemelo en el otro SPA
+// (prisier-admin ↔ prisier-client). Replica los cambios y corre scripts/check-parity.sh.
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from './api'

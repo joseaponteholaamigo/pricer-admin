@@ -24,7 +24,7 @@ export function SkuTableFilters({ categorias, filterCategoria, filterSku, onChan
         {categorias.map(c => <option key={c} value={c}>{c}</option>)}
       </select>
       <div className="relative">
-        <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-p-muted pointer-events-none" />
+        <Search size={13} aria-hidden className="absolute left-3 top-1/2 -translate-y-1/2 text-p-muted pointer-events-none" />
         <input
           type="text"
           placeholder="Buscar SKU o nombre…"
@@ -108,7 +108,8 @@ export function CompetidoresCell({ skuId, asignados, competidores, onChange }: C
             <span className="truncate">{truncate(c.nombre)}</span>
             <button
               onClick={e => { e.stopPropagation(); toggle(c.id) }}
-              className="hover:text-p-red leading-none shrink-0"
+              aria-label={`Quitar ${c.nombre}`}
+              className="hover:text-p-red leading-none shrink-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-p-lime/60 rounded"
             >×</button>
           </span>
         ))}
@@ -120,8 +121,11 @@ export function CompetidoresCell({ skuId, asignados, competidores, onChange }: C
         )}
         <button
           onClick={() => setOpen(o => !o)}
+          aria-label="Agregar competidor"
+          aria-expanded={open}
           className="inline-flex items-center justify-center w-6 h-6 rounded-full border border-p-border
-                     text-p-gray hover:border-p-lime hover:text-p-lime transition-colors text-sm font-bold"
+                     text-p-gray hover:border-p-lime hover:text-p-lime transition-colors text-sm font-bold
+                     focus-visible:outline focus-visible:outline-2 focus-visible:outline-p-lime/60"
         >
           +
         </button>
@@ -132,7 +136,7 @@ export function CompetidoresCell({ skuId, asignados, competidores, onChange }: C
                         rounded-lg shadow-lg">
           <div className="p-2 border-b border-p-border">
             <div className="relative">
-              <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-p-muted pointer-events-none" />
+              <Search size={12} aria-hidden className="absolute left-2.5 top-1/2 -translate-y-1/2 text-p-muted pointer-events-none" />
               <input
                 autoFocus
                 type="text"

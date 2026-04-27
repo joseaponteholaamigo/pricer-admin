@@ -1,5 +1,7 @@
 // ─── Mock data admin – basado en SeedData.cs ────────────────────────────────
 
+import { CATEGORIAS } from '../shared/catalog'
+
 export interface MockUser {
   id: string
   email: string
@@ -216,7 +218,7 @@ export const SEED_USERS: MockUser[] = [
     email: 'cliente@congrupo.com',
     password: '123456',
     nombreCompleto: 'Cliente ConGrupo',
-    rol: 'cliente_comercial',
+    rol: 'cliente',
     tenantId: 'tenant-001',
     estado: 'activo',
     invitadoPor: 'user-consultor-001',
@@ -228,7 +230,7 @@ export const SEED_USERS: MockUser[] = [
     email: 'cliente@bevmax.com',
     password: '123456',
     nombreCompleto: 'Cliente BevMax',
-    rol: 'cliente_comercial',
+    rol: 'cliente',
     tenantId: 'tenant-002',
     estado: 'activo',
     invitadoPor: 'user-consultor-001',
@@ -240,7 +242,7 @@ export const SEED_USERS: MockUser[] = [
     email: 'cliente@lacteosandes.com',
     password: '123456',
     nombreCompleto: 'Cliente Lácteos Andes',
-    rol: 'cliente_comercial',
+    rol: 'cliente',
     tenantId: 'tenant-003',
     estado: 'activo',
     invitadoPor: 'user-consultor-001',
@@ -252,7 +254,7 @@ export const SEED_USERS: MockUser[] = [
     email: 'cliente@granoselect.com',
     password: '123456',
     nombreCompleto: 'Cliente GranoSelect',
-    rol: 'cliente_comercial',
+    rol: 'cliente',
     tenantId: 'tenant-004',
     estado: 'activo',
     invitadoPor: 'user-consultor-001',
@@ -264,7 +266,7 @@ export const SEED_USERS: MockUser[] = [
     email: 'cliente@freshmart.com',
     password: '123456',
     nombreCompleto: 'Cliente FreshMart',
-    rol: 'cliente_comercial',
+    rol: 'cliente',
     tenantId: 'tenant-005',
     estado: 'activo',
     invitadoPor: 'user-consultor-001',
@@ -276,7 +278,7 @@ export const SEED_USERS: MockUser[] = [
     email: 'cliente@nutripack.com',
     password: '123456',
     nombreCompleto: 'Cliente NutriPack',
-    rol: 'cliente_comercial',
+    rol: 'cliente',
     tenantId: 'tenant-006',
     estado: 'activo',
     invitadoPor: 'user-consultor-001',
@@ -474,19 +476,12 @@ export const SEED_PORTAFOLIO: MockPortafolio = {
 
 // ─── Seed Categorías con IVA ──────────────────────────────────────────────────
 
-// Categorías globales del sistema — compartidas por todos los tenants
-export const SEED_CATEGORIAS: MockCategoriaConfig[] = [
-  { nombre: 'Aceites',             iva: 0.00 },
-  { nombre: 'Agua',                iva: 0.00 },
-  { nombre: 'Arroz',               iva: 0.00 },
-  { nombre: 'Bebidas Energéticas', iva: 0.19 },
-  { nombre: 'Gaseosas',            iva: 0.19 },
-  { nombre: 'Hidratantes',         iva: 0.19 },
-  { nombre: 'Jugos',               iva: 0.00 },
-  { nombre: 'Lácteos',             iva: 0.00 },
-  { nombre: 'Pastas',              iva: 0.00 },
-  { nombre: 'Tés',                 iva: 0.19 },
-]
+// Categorías globales del sistema — derivadas del catálogo canónico
+// (`shared/catalog.ts`). Todos los tenants comparten esta lista.
+export const SEED_CATEGORIAS: MockCategoriaConfig[] = CATEGORIAS.map(c => ({
+  nombre: c.label,
+  iva: c.iva,
+}))
 
 // ─── Seed R-007: Canales × Categorías (sin IVA) ──────────────────────────────
 

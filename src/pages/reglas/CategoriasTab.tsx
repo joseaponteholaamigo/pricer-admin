@@ -1,11 +1,19 @@
-import { useState, useMemo } from 'react'
+import { useMemo, useState, useRef, useEffect, useId } from 'react'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
 import { useUrlParam, useUrlNumber } from '../../lib/useUrlState'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Trash2, Search, Pencil, X } from 'lucide-react'
+import { Plus, Trash2, Search, Pencil, X, FileDown } from 'lucide-react'
 import api from '../../lib/api'
+import { downloadTemplate } from '../../lib/downloadTemplate'
 import type { CategoriaConfig } from '../../lib/types'
-import Spinner from '../../components/Spinner'
 import ConfirmModal from '../../components/ConfirmModal'
+import { SkeletonTable } from '../../components/Skeleton'
+import QueryErrorState from '../../components/QueryErrorState'
+import EmptyState from '../../components/EmptyState'
+import { useToast } from '../../components/useToast'
+import { makeCategoriaSchema } from '../../schemas/reglas'
+import { useFocusTrap } from '../../lib/useFocusTrap'
 
 // ─── CategoriasTab ────────────────────────────────────────────────────────────
 
@@ -15,7 +23,6 @@ interface CategoriaFormValues {
   nombre: string
   iva: string
 }
-type CategoriaFormErrors = Partial<Record<keyof CategoriaFormValues, string>>
 
 function CategoriaModal({
   mode,
@@ -30,86 +37,111 @@ function CategoriaModal({
   onSave: (values: CategoriaFormValues) => void
   onClose: () => void
 }) {
-  const [vals, setVals] = useState<CategoriaFormValues>({
-    nombre: initial?.nombre ?? '',
-    iva: initial?.iva ?? '19',
+  const schema = useMemo(
+    () => makeCategoriaSchema({ existingNombres }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [existingNombres.join(',')],
+  )
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting, touchedFields, isSubmitted },
+  } = useForm<CategoriaFormValues>({
+    resolver: zodResolver(schema),
+    defaultValues: {
+      nombre: initial?.nombre ?? '',
+      iva: initial?.iva ?? '19',
+    },
+    mode: 'onBlur',
+    reValidateMode: 'onChange',
   })
-  const [touched, setTouched] = useState<Partial<Record<keyof CategoriaFormValues, boolean>>>({})
-  const [submitAttempted, setSubmitAttempted] = useState(false)
 
-  const validate = (v: CategoriaFormValues): CategoriaFormErrors => {
-    const err: CategoriaFormErrors = {}
-    if (!v.nombre.trim()) err.nombre = 'El nombre es requerido'
-    else if (existingNombres.includes(v.nombre.trim())) err.nombre = 'Ya existe una categoría con este nombre'
-    const ivaNum = parseFloat(v.iva)
-    if (v.iva === '' || isNaN(ivaNum)) err.iva = 'El IVA es requerido'
-    else if (ivaNum < 0 || ivaNum > 100) err.iva = 'Debe estar entre 0 y 100'
-    return err
+  const showErr = (field: keyof CategoriaFormValues) => {
+    const touched = touchedFields[field] || isSubmitted
+    const msg = errors[field]?.message
+    if (!touched || !msg) return null
+    return (
+      <p id={`cat-${field}-error`} className="text-xs text-p-red mt-1" role="alert">
+        {msg}
+      </p>
+    )
   }
 
-  const errors = validate(vals)
-  const showError = (field: keyof CategoriaFormValues) =>
-    (touched[field] || submitAttempted) ? errors[field] : undefined
+  const dialogRef = useRef<HTMLDivElement>(null)
+  const titleId = useId()
+  useFocusTrap(dialogRef, true)
 
-  const set = (field: keyof CategoriaFormValues, value: string) => {
-    setVals(prev => ({ ...prev, [field]: value }))
-    setTouched(prev => ({ ...prev, [field]: true }))
-  }
-
-  const handleSubmit = () => {
-    setSubmitAttempted(true)
-    if (Object.keys(validate(vals)).length === 0) onSave(vals)
-  }
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [onClose])
 
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
       onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}
     >
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-sm mx-4 p-6">
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        className="bg-white rounded-xl shadow-xl w-full max-w-sm mx-4 p-4 sm:p-6 max-h-[90vh] overflow-y-auto"
+      >
         <div className="flex items-center justify-between mb-5">
-          <h2 className="text-base font-semibold text-p-dark">
+          <h2 id={titleId} className="text-base font-semibold text-p-dark">
             {mode === 'add' ? 'Nueva categoría' : 'Editar categoría'}
           </h2>
-          <button onClick={onClose} className="text-p-gray hover:text-p-dark transition-colors">
-            <X size={18} />
+          <button type="button" onClick={onClose} aria-label="Cerrar" className="text-p-gray hover:text-p-dark transition-colors">
+            <X size={18} aria-hidden />
           </button>
         </div>
 
-        <div className="space-y-4">
-          <div>
-            <label className="form-label">Nombre</label>
-            <input
-              value={vals.nombre}
-              onChange={e => set('nombre', e.target.value)}
-              onBlur={() => setTouched(p => ({ ...p, nombre: true }))}
-              disabled={mode === 'edit'}
-              className={`form-input w-full ${mode === 'edit' ? 'bg-p-surface text-p-muted cursor-not-allowed' : ''} ${showError('nombre') ? 'border-red-400' : ''}`}
-              placeholder="Ej: Bebidas Energéticas"
-            />
-            {showError('nombre') && <p className="text-xs text-red-500 mt-1">{showError('nombre')}</p>}
+        <form onSubmit={handleSubmit(onSave)} noValidate>
+          <div className="space-y-4">
+            <div>
+              <label htmlFor="cat-nombre" className="form-label">Nombre</label>
+              <input
+                id="cat-nombre"
+                {...register('nombre')}
+                disabled={mode === 'edit'}
+                aria-invalid={!!(touchedFields.nombre || isSubmitted) && !!errors.nombre}
+                aria-describedby={errors.nombre ? 'cat-nombre-error' : undefined}
+                className={`form-input w-full ${mode === 'edit' ? 'bg-p-surface text-p-muted cursor-not-allowed' : ''}`}
+                placeholder="Ej: Bebidas Energéticas"
+              />
+              {showErr('nombre')}
+            </div>
+
+            <div>
+              <label htmlFor="cat-iva" className="form-label">IVA (%)</label>
+              <input
+                id="cat-iva"
+                type="number"
+                min={0}
+                max={100}
+                step={0.5}
+                {...register('iva')}
+                aria-invalid={!!(touchedFields.iva || isSubmitted) && !!errors.iva}
+                aria-describedby={errors.iva ? 'cat-iva-error' : undefined}
+                className="form-input w-full"
+                placeholder="19"
+              />
+              {showErr('iva')}
+            </div>
           </div>
 
-          <div>
-            <label className="form-label">IVA (%)</label>
-            <input
-              type="number" min={0} max={100} step={0.5}
-              value={vals.iva}
-              onChange={e => set('iva', e.target.value)}
-              onBlur={() => setTouched(p => ({ ...p, iva: true }))}
-              className={`form-input w-full ${showError('iva') ? 'border-red-400' : ''}`}
-              placeholder="19"
-            />
-            {showError('iva') && <p className="text-xs text-red-500 mt-1">{showError('iva')}</p>}
+          <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 mt-6">
+            <button type="button" onClick={onClose} className="btn-secondary w-full sm:w-auto">Cancelar</button>
+            <button type="submit" disabled={isSubmitting} className="btn-primary w-full sm:w-auto">
+              {mode === 'add' ? 'Agregar' : 'Guardar'}
+            </button>
           </div>
-        </div>
-
-        <div className="flex justify-end gap-2 mt-6">
-          <button onClick={onClose} className="btn-secondary">Cancelar</button>
-          <button onClick={handleSubmit} className="btn-primary">
-            {mode === 'add' ? 'Agregar' : 'Guardar'}
-          </button>
-        </div>
+        </form>
       </div>
     </div>
   )
@@ -117,17 +149,17 @@ function CategoriaModal({
 
 function CategoriasTab({ tenantId }: { tenantId: string }) {
   const queryClient = useQueryClient()
+  const toast = useToast()
   const [modal, setModal] = useState<{ mode: 'add' | 'edit'; item?: CategoriaConfig } | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<CategoriaConfig | null>(null)
   const [page, setPage] = useUrlNumber('page', 1)
   const [filterText, setFilterText] = useUrlParam('q')
 
-  const { data: items = [], isLoading } = useQuery<CategoriaConfig[]>({
+  const { data: items = [], isLoading, isError, refetch } = useQuery<CategoriaConfig[]>({
     queryKey: ['reglas-categorias', tenantId],
     queryFn: () =>
       api.get<CategoriaConfig[]>(`reglas/categorias?tenantId=${tenantId}`)
-        .then(r => r.data)
-        .catch(() => []),
+        .then(r => r.data),
   })
 
   const filteredItems = useMemo(() => {
@@ -148,6 +180,10 @@ function CategoriasTab({ tenantId }: { tenantId: string }) {
       api.put(`reglas/categorias?tenantId=${tenantId}`, { categorias: newItems }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['reglas-categorias', tenantId] })
+      toast.success('Cambios guardados')
+    },
+    onError: (err: unknown) => {
+      toast.error('No se pudo guardar: ' + (err instanceof Error ? err.message : 'Error desconocido'))
     },
   })
 
@@ -175,7 +211,7 @@ function CategoriasTab({ tenantId }: { tenantId: string }) {
     return items.map(c => c.nombre).filter(n => n !== exclude)
   }, [items, modal])
 
-  if (isLoading) return <Spinner />
+  if (isError) return <QueryErrorState onRetry={refetch} />
 
   return (
     <div>
@@ -184,7 +220,7 @@ function CategoriasTab({ tenantId }: { tenantId: string }) {
       </p>
 
       <div className="card mt-5">
-        <div className="mb-4 flex items-center gap-2">
+        <div className="mb-4 flex flex-wrap items-center gap-2">
           <div className="relative">
             <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-p-muted pointer-events-none" />
             <input
@@ -192,61 +228,93 @@ function CategoriasTab({ tenantId }: { tenantId: string }) {
               placeholder="Buscar categoría o IVA…"
               value={filterText}
               onChange={e => { setFilterText(e.target.value); setPage(1) }}
-              className="form-input pl-8 pr-3 py-1.5 w-56"
+              className="form-input pl-8 pr-3 py-1.5 w-full sm:w-56"
             />
           </div>
-          <button
-            onClick={() => setModal({ mode: 'add' })}
-            className="btn-secondary text-xs flex items-center gap-1 py-1.5 ml-auto"
-          >
-            <Plus size={13} /> Agregar
-          </button>
+          <div className="flex items-center gap-2 sm:ml-auto w-full sm:w-auto">
+            <button
+              onClick={() => downloadTemplate(
+                'categorias.xlsx',
+                'Categorías',
+                ['Categoría', 'IVA (%)'],
+                { 'Categoría': 'Gaseosas', 'IVA (%)': 19 },
+              )}
+              aria-label="Descargar plantilla de categorías"
+              className="btn-secondary text-xs flex items-center gap-1 py-1.5 flex-1 sm:flex-none justify-center"
+            >
+              <FileDown size={13} aria-hidden /> Descargar plantilla
+            </button>
+            <button
+              onClick={() => setModal({ mode: 'add' })}
+              className="btn-secondary text-xs flex items-center gap-1 py-1.5 flex-1 sm:flex-none justify-center"
+            >
+              <Plus size={13} /> Agregar
+            </button>
+          </div>
         </div>
 
-        <table className="data-table w-full">
-          <thead>
-            <tr>
-              <th className="text-left">Categoría</th>
-              <th className="text-center w-40">IVA (%)</th>
-              <th className="w-20" />
-            </tr>
-          </thead>
-          <tbody>
-            {pageItems.map(cat => (
-              <tr key={cat.nombre}>
-                <td className="text-sm font-medium text-p-dark">{cat.nombre}</td>
-                <td className="text-center text-sm text-p-dark">
-                  {Math.round(cat.iva * 1000) / 10}%
-                </td>
-                <td>
-                  <div className="flex items-center justify-end gap-1">
-                    <button
-                      onClick={() => setModal({ mode: 'edit', item: cat })}
-                      className="p-1.5 rounded hover:bg-p-surface text-p-gray hover:text-p-dark transition-colors"
-                    >
-                      <Pencil size={14} />
-                    </button>
-                    <button
-                      onClick={() => setConfirmDelete(cat)}
-                      className="p-1.5 rounded hover:bg-red-50 text-p-gray hover:text-red-500 transition-colors"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-            {items.length === 0 && (
+        <div className="overflow-x-auto">
+          <table className="data-table w-full min-w-[320px]">
+            <thead>
               <tr>
-                <td colSpan={3} className="text-center text-sm text-p-muted py-6">
-                  Sin categorías — usa el botón Agregar para crear una.
-                </td>
+                <th className="text-left">Categoría</th>
+                <th className="text-center w-40">IVA (%)</th>
+                <th className="w-20" />
               </tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {isLoading ? (
+                <SkeletonTable rows={5} columns={3} />
+              ) : pageItems.length > 0 ? (
+                pageItems.map(cat => (
+                  <tr key={cat.nombre}>
+                    <td className="text-sm font-medium text-p-dark">{cat.nombre}</td>
+                    <td className="text-center text-sm text-p-dark">
+                      {Math.round(cat.iva * 1000) / 10}%
+                    </td>
+                    <td>
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          onClick={() => setModal({ mode: 'edit', item: cat })}
+                          aria-label={`Editar ${cat.nombre}`}
+                          className="btn-icon hover:bg-p-surface text-p-gray hover:text-p-dark"
+                        >
+                          <Pencil size={14} aria-hidden />
+                        </button>
+                        <button
+                          onClick={() => setConfirmDelete(cat)}
+                          aria-label={`Eliminar ${cat.nombre}`}
+                          className="btn-icon hover:bg-red-50 text-p-gray hover:text-red-500"
+                        >
+                          <Trash2 size={14} aria-hidden />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={3}>
+                    {items.length === 0 ? (
+                      <EmptyState
+                        title="Sin categorías"
+                        description="Crea la primera categoría para configurar el IVA aplicable."
+                        action={{ label: 'Agregar categoría', onClick: () => setModal({ mode: 'add' }) }}
+                      />
+                    ) : (
+                      <EmptyState
+                        title="Sin resultados"
+                        description="Ninguna categoría coincide con los filtros."
+                      />
+                    )}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
 
-        <div className="flex items-center justify-between mt-3 pt-3 border-t border-p-border">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mt-3 pt-3 border-t border-p-border">
           <span className="text-sm text-p-muted">
             {safePage} / {totalPages} — {filteredItems.length} categoría{filteredItems.length !== 1 ? 's' : ''}
           </span>

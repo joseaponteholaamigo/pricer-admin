@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form'
 import api from '../lib/api'
 import { useAuth } from '../lib/auth'
 import type { UserListItem, TenantListItem } from '../lib/types'
+import { ROLES, labelOf } from '../shared/catalog'
 
 interface UserForm {
   email: string
@@ -37,7 +38,7 @@ export default function UsersPage() {
   })
 
   const { register, handleSubmit, reset, setValue } = useForm<UserForm>({
-    defaultValues: { rol: 'cliente_comercial', estado: 'activo', tenantId: '' },
+    defaultValues: { rol: 'cliente', estado: 'activo', tenantId: '' },
   })
 
   const saveMutation = useMutation({
@@ -58,7 +59,7 @@ export default function UsersPage() {
 
   const openCreate = () => {
     setEditingId(null)
-    reset({ email: '', nombreCompleto: '', password: '', rol: 'cliente_comercial', tenantId: '', estado: 'activo' })
+    reset({ email: '', nombreCompleto: '', password: '', rol: 'cliente', tenantId: '', estado: 'activo' })
     setShowForm(true)
   }
 
@@ -80,15 +81,7 @@ export default function UsersPage() {
 
   const onSubmit = (data: UserForm) => saveMutation.mutate(data)
 
-  const rolLabel = (rol: string) => {
-    const labels: Record<string, string> = {
-      admin: 'Admin',
-      consultor_prisier: 'Consultor',
-      cliente_comercial: 'Cliente Comercial',
-      cliente_educacion: 'Cliente Educación',
-    }
-    return labels[rol] || rol
-  }
+  const rolLabel = (rol: string) => labelOf(ROLES, rol)
 
   const estadoBadge = (estado: string) => {
     const cls = estado === 'activo' ? 'badge-green' : 'badge-yellow'
@@ -147,10 +140,9 @@ export default function UsersPage() {
               <div>
                 <label className="form-label">Rol</label>
                 <select {...register('rol')} className="form-input">
-                  {isAdmin && <option value="admin">Admin</option>}
-                  {isAdmin && <option value="consultor_prisier">Consultor Prisier</option>}
-                  <option value="cliente_comercial">Cliente Comercial</option>
-                  <option value="cliente_educacion">Cliente Educación</option>
+                  {ROLES
+                    .filter(r => isAdmin || r.value === 'cliente')
+                    .map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
                 </select>
               </div>
               {!editingId && (

@@ -3,10 +3,10 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   Building2, Users, DollarSign, Settings, Database,
-  ArrowRight,
+  ArrowRight, Activity, AlertCircle, CheckCircle2, Clock,
 } from 'lucide-react'
 import api from '../lib/api'
-import type { TenantListItem, UserListItem, ScraperHistorialRow, ReglaResumenItem, TenantActividadItem } from '../lib/types'
+import type { TenantListItem, UserListItem, ScraperHistorialRow, TenantActividadItem, ScraperStatus } from '../lib/types'
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime()
@@ -48,15 +48,14 @@ export default function DashboardPage() {
     queryFn: () => api.get<ScraperHistorialRow[]>('admin/scraper/historial?tenantId=tenant-001').then(r => r.data),
   })
 
-  const { data: reglas = [] } = useQuery<ReglaResumenItem[]>({
-    queryKey: ['reglas-resumen-dashboard'],
-    queryFn: () => api.get<ReglaResumenItem[]>('reglas/resumen').then(r => r.data),
+  const { data: scraperStatus } = useQuery<ScraperStatus>({
+    queryKey: ['scraper-status-dashboard'],
+    queryFn: () => api.get<ScraperStatus>('admin/scraper/status?tenantId=tenant-001').then(r => r.data),
+    staleTime: 60_000,
   })
 
   const totalPrecios = useMemo(() =>
     cargas.reduce((sum, c) => sum + c.registrosProcesados, 0), [cargas])
-
-  const reglasConfig = reglas.filter(r => r.configurada).length
 
   const kpis = [
     {
@@ -83,20 +82,12 @@ export default function DashboardPage() {
       color: 'text-p-lime',
       to: '/scraper',
     },
-    {
-      label: 'Reglas configuradas',
-      value: `${reglasConfig}/${reglas.length}`,
-      sub: reglas.length > 0 && reglasConfig < reglas.length ? 'Hay pendientes' : 'Completas',
-      icon: Settings,
-      color: reglasConfig < reglas.length && reglas.length > 0 ? 'text-p-yellow' : 'text-p-lime',
-      to: '/reglas',
-    },
   ]
 
   return (
     <div className="space-y-6">
       {/* KPI row */}
-      <div className="grid grid-cols-4 gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
         {kpis.map(k => (
           <button
             key={k.label}
@@ -112,6 +103,56 @@ export default function DashboardPage() {
           </button>
         ))}
       </div>
+
+      {/* Estado del scraper */}
+      {scraperStatus && (
+        <div className="card">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-semibold text-p-dark flex items-center gap-2">
+              <Activity size={15} className="text-p-muted" />
+              Estado del scraper
+            </h3>
+            <Link to="/scraper" className="text-xs text-p-lime hover:underline flex items-center gap-1">
+              Ver detalle <ArrowRight size={11} />
+            </Link>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="flex items-center gap-3">
+              {scraperStatus.estado === 'activo' ? (
+                <CheckCircle2 size={20} className="text-p-lime shrink-0" />
+              ) : scraperStatus.estado === 'error' ? (
+                <AlertCircle size={20} className="text-p-red shrink-0" />
+              ) : (
+                <Clock size={20} className="text-p-gray shrink-0" />
+              )}
+              <div>
+                <p className="text-xs text-p-muted">Estado</p>
+                <span className={`badge ${
+                  scraperStatus.estado === 'activo' ? 'badge-green' :
+                  scraperStatus.estado === 'error' ? 'badge-red' : 'badge'
+                }`}>
+                  {scraperStatus.estado === 'activo' ? 'Activo' :
+                   scraperStatus.estado === 'error' ? 'Error' : 'Sin datos'}
+                </span>
+              </div>
+            </div>
+            <div>
+              <p className="text-xs text-p-muted mb-0.5">Ultima corrida</p>
+              <p className="text-sm font-medium text-p-dark">
+                {scraperStatus.ultimaCarga
+                  ? timeAgo(scraperStatus.ultimaCarga)
+                  : <span className="text-p-muted italic">Sin corridas</span>}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-p-muted mb-0.5">Filas ingestadas</p>
+              <p className="text-sm font-medium text-p-dark">
+                {scraperStatus.registrosProcesados.toLocaleString('es-CO')}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Actividad reciente por tenant */}
       <div className="card">

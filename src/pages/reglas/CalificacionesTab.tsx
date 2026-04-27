@@ -1,15 +1,20 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useUrlParam } from '../../lib/useUrlState'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { AlertTriangle, Save, Search } from 'lucide-react'
+import { AlertTriangle, Save, Search, FileDown } from 'lucide-react'
 import api from '../../lib/api'
+import { downloadTemplate } from '../../lib/downloadTemplate'
 import type { CompetidoresData, SkuCalificaciones } from '../../lib/types'
 import Spinner from '../../components/Spinner'
+import QueryErrorState from '../../components/QueryErrorState'
+import { useToast } from '../../components/useToast'
+import { calificacionesSchema } from '../../schemas/reglas'
 
 // ─── CalificacionesTab (R-002/R-003 — parte b: SKU × atributo) ───────────────
 
 function CalificacionesTab({ tenantId }: { tenantId: string }) {
   const queryClient = useQueryClient()
+  const toast = useToast()
   const [filterCat, setFilterCat] = useUrlParam('cat')
   const [searchPropios, setSearchPropios] = useUrlParam('q')
   const [rawModo, setModo] = useUrlParam('modo', 'propio')
@@ -19,9 +24,11 @@ function CalificacionesTab({ tenantId }: { tenantId: string }) {
   const [rawSku, setSelectedId] = useUrlParam('sku')
   const selectedId: string | null = rawSku || null
   const [cals, setCals] = useState<Record<string, number> | null>(null)
+  const [rawCals, setRawCals] = useState<Record<string, string>>({})
+  const [zodError, setZodError] = useState<string | null>(null)
   const dirty = cals !== null
 
-  const { data: r001, isLoading: loadingR001 } = useQuery<CompetidoresData>({
+  const { data: r001, isLoading: loadingR001, isError: errorR001, refetch: refetchR001 } = useQuery<CompetidoresData>({
     queryKey: ['reglas-r001', tenantId],
     queryFn: () => api.get<CompetidoresData>(`reglas/competidores?tenantId=${tenantId}`).then(r => r.data),
   })
@@ -69,12 +76,37 @@ function CalificacionesTab({ tenantId }: { tenantId: string }) {
     }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['reglas-calificaciones', tenantId, selectedId] })
+      setZodError(null)
       setCals(null)
+      setRawCals({})
+      toast.success('Cambios guardados')
+    },
+    onError: (err: unknown) => {
+      toast.error('No se pudo guardar: ' + (err instanceof Error ? err.message : 'Error desconocido'))
     },
   })
 
-  const updateCal = (atributo: string, val: number) => {
-    setCals({ ...getCurrentCals(), [atributo]: val })
+  const handleMutate = () => {
+    // Validación al borde antes del PATCH
+    const result = calificacionesSchema.safeParse({
+      skuId: selectedId ?? '',
+      modo,
+      competidorId: modo === 'competidor' ? selectedCompId : null,
+      calificaciones: currentCals,
+    })
+    if (!result.success) {
+      const msg = result.error.issues[0]?.message ?? 'Error de validación'
+      setZodError(msg)
+      return
+    }
+    setZodError(null)
+    mutation.mutate()
+  }
+
+  const updateCalRaw = (atributo: string, text: string) => {
+    setRawCals(prev => ({ ...prev, [atributo]: text }))
+    const parsed = parseFloat(text)
+    setCals({ ...getCurrentCals(), [atributo]: isNaN(parsed) ? 0 : parsed })
   }
 
   const confirmIfDirty = (): boolean => {
@@ -86,6 +118,7 @@ function CalificacionesTab({ tenantId }: { tenantId: string }) {
     if (!confirmIfDirty()) return
     setSelectedId(id)
     setCals(null)
+    setRawCals({})
     setModo('propio')
     setSelectedCompId('')
   }
@@ -109,17 +142,37 @@ function CalificacionesTab({ tenantId }: { tenantId: string }) {
     return true
   })
 
+  if (errorR001) return <QueryErrorState onRetry={refetchR001} />
   if (loadingR001) return <Spinner />
 
   return (
     <div>
-      <p className="text-sm text-p-gray mb-4">
-        Calificación por SKU × atributo. Configura tanto para el propio producto como para cada competidor asignado. Precisión 10 decimales.
-      </p>
+      <div className="flex items-start justify-between gap-3 mb-4">
+        <p className="text-sm text-p-gray flex-1">
+          Calificación por SKU × atributo. Configura tanto para el propio producto como para cada competidor asignado. Precisión 10 decimales.
+        </p>
+        <button
+          onClick={() => downloadTemplate(
+            'calificaciones.xlsx',
+            'Calificaciones',
+            ['EAN', 'Atributo', 'Tipo (propio|competidor)', 'Calificación'],
+            {
+              'EAN': '7702001234567',
+              'Atributo': 'Sabor',
+              'Tipo (propio|competidor)': 'propio',
+              'Calificación': 4,
+            },
+          )}
+          aria-label="Descargar plantilla de calificaciones"
+          className="btn-secondary text-xs flex items-center gap-1 py-1.5 flex-shrink-0"
+        >
+          <FileDown size={13} aria-hidden /> Descargar plantilla
+        </button>
+      </div>
 
-      <div className="flex gap-4 items-start">
+      <div className="flex flex-col md:flex-row gap-4 items-start">
         {/* Panel izquierdo — lista de SKUs */}
-        <div className="card w-72 flex-shrink-0 p-0 overflow-hidden">
+        <div className="card w-full md:w-72 md:flex-shrink-0 p-0 overflow-hidden">
           <div className="px-3 pt-3 pb-2 border-b border-p-border space-y-2">
             <select
               value={filterCat}
@@ -177,7 +230,7 @@ function CalificacionesTab({ tenantId }: { tenantId: string }) {
                 {(['propio', 'competidor'] as const).map(m => (
                   <button
                     key={m}
-                    onClick={() => { if (!confirmIfDirty()) return; setModo(m); setCals(null); setSelectedCompId('') }}
+                    onClick={() => { if (!confirmIfDirty()) return; setModo(m); setCals(null); setRawCals({}); setSelectedCompId('') }}
                     className={`px-3 py-1.5 text-sm font-medium transition-colors ${
                       modo === m ? 'bg-p-lime text-p-bg' : 'text-p-gray hover:text-p-dark'
                     }`}
@@ -189,7 +242,7 @@ function CalificacionesTab({ tenantId }: { tenantId: string }) {
               {modo === 'competidor' && (
                 <select
                   value={selectedCompId ?? ''}
-                  onChange={e => { if (!confirmIfDirty()) return; setSelectedCompId(e.target.value); setCals(null) }}
+                  onChange={e => { if (!confirmIfDirty()) return; setSelectedCompId(e.target.value); setCals(null); setRawCals({}) }}
                   className="form-select py-1.5 text-sm min-w-44"
                 >
                   <option value="">Selecciona competidor…</option>
@@ -205,9 +258,10 @@ function CalificacionesTab({ tenantId }: { tenantId: string }) {
                   <span className="text-sm font-medium text-p-gray">
                     VP calculado ({modo === 'propio' ? 'propio' : competidoresDelSku.find(c => c.id === selectedCompId)?.nombre ?? '…'})
                   </span>
-                  <span className="text-2xl font-bold text-p-lime">{vpActual.toFixed(10).replace(/\.?0+$/, '')}</span>
+                  <span className="text-2xl font-bold text-p-lime">{vpActual.toFixed(2)}</span>
                 </div>
-                <table className="data-table w-full">
+                <div className="overflow-x-auto">
+                <table className="data-table w-full min-w-[480px]">
                   <thead>
                     <tr>
                       <th className="text-left">#</th>
@@ -229,10 +283,24 @@ function CalificacionesTab({ tenantId }: { tenantId: string }) {
                             <input
                               type="text"
                               inputMode="decimal"
-                              value={cal === 0 ? '' : String(cal)}
+                              value={rawCals[a.nombre] ?? (cal === 0 ? '' : String(cal))}
                               onChange={e => {
-                                const v = parseFloat(e.target.value)
-                                updateCal(a.nombre, isNaN(v) ? 0 : v)
+                                const text = e.target.value
+                                if (text === '' || /^\d*\.?\d*$/.test(text)) {
+                                  updateCalRaw(a.nombre, text)
+                                }
+                              }}
+                              onBlur={e => {
+                                const text = e.target.value
+                                const parsed = parseFloat(text)
+                                setRawCals(prev => {
+                                  const next = { ...prev }
+                                  delete next[a.nombre]
+                                  return next
+                                })
+                                if (!isNaN(parsed)) {
+                                  setCals({ ...getCurrentCals(), [a.nombre]: parsed })
+                                }
                               }}
                               placeholder="0"
                               className="form-input py-1 text-sm text-center w-36 mx-auto font-mono"
@@ -246,6 +314,7 @@ function CalificacionesTab({ tenantId }: { tenantId: string }) {
                     })}
                   </tbody>
                 </table>
+                </div>
               </div>
             ) : (
               <div className="card text-center py-8 text-p-gray text-sm">
@@ -256,18 +325,25 @@ function CalificacionesTab({ tenantId }: { tenantId: string }) {
             )}
 
             {dirty && (
-              <div className="flex items-center justify-end gap-3 pt-3 mt-1">
-                <span className="text-xs text-p-yellow flex items-center gap-1">
-                  <AlertTriangle size={12} /> Sin guardar
-                </span>
-                <button
-                  onClick={() => mutation.mutate()}
-                  disabled={mutation.isPending}
-                  className="btn-primary text-xs py-1.5 flex items-center gap-1.5 disabled:opacity-40"
-                >
-                  <Save size={13} />
-                  {mutation.isPending ? 'Guardando…' : 'Guardar'}
-                </button>
+              <div className="flex flex-col items-end gap-1 pt-3 mt-1">
+                {zodError && (
+                  <p className="text-xs text-p-red flex items-center gap-1 self-start" role="alert">
+                    <AlertTriangle size={12} aria-hidden /> {zodError}
+                  </p>
+                )}
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-p-yellow flex items-center gap-1">
+                    <AlertTriangle size={12} aria-hidden /> Sin guardar
+                  </span>
+                  <button
+                    onClick={handleMutate}
+                    disabled={mutation.isPending}
+                    className="btn-primary text-xs py-1.5 flex items-center gap-1.5 disabled:opacity-40"
+                  >
+                    <Save size={13} />
+                    {mutation.isPending ? 'Guardando…' : 'Guardar'}
+                  </button>
+                </div>
               </div>
             )}
           </div>

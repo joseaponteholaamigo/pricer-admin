@@ -3,10 +3,8 @@ import { useQuery } from '@tanstack/react-query'
 import { Filter, ChevronDown, ChevronUp, FileSpreadsheet, FileText } from 'lucide-react'
 import api from '../lib/api'
 import type { TenantListItem, AuditLogRow } from '../lib/types'
+import { AUDIT_ACCIONES, AUDIT_ENTIDADES } from '../shared/catalog'
 
-const ACCIONES = ['login', 'logout', 'cambio_regla', 'creacion_tenant', 'edicion_tenant',
-  'creacion_usuario', 'edicion_usuario', 'upload_archivo', 'exportacion']
-const ENTIDADES = ['tenant', 'usuario', 'regla', 'sku', 'competidor', 'retailer', 'portafolio', 'sesion']
 const PAGE_SIZE = 25
 
 interface Filters {
@@ -167,7 +165,7 @@ export default function AuditLogsPage() {
                 className="form-input text-sm w-full"
               >
                 <option value="">Todas</option>
-                {ACCIONES.map(a => <option key={a} value={a}>{a.replace(/_/g, ' ')}</option>)}
+                {AUDIT_ACCIONES.map(a => <option key={a.value} value={a.value}>{a.label}</option>)}
               </select>
             </div>
             <div>
@@ -178,7 +176,7 @@ export default function AuditLogsPage() {
                 className="form-input text-sm w-full"
               >
                 <option value="">Todas</option>
-                {ENTIDADES.map(e => <option key={e} value={e}>{e}</option>)}
+                {AUDIT_ENTIDADES.map(e => <option key={e.value} value={e.value}>{e.label}</option>)}
               </select>
             </div>
             <div>
