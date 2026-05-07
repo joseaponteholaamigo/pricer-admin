@@ -1,0 +1,1 @@
+import{S as e}from"./ToastProvider-CSCSwRcS.js";import{t}from"./lock-CA131K5O.js";var n=e();function r(){return(0,n.jsxs)(`span`,{className:`badge badge-blue`,children:[(0,n.jsx)(t,{size:10,"aria-hidden":!0,className:`mr-1`}),` Solo Prisier`]})}export{r as t};
