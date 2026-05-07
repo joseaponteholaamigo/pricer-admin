@@ -1,7 +1,14 @@
 import { Outlet, NavLink, useLocation } from 'react-router-dom'
-import { LayoutDashboard, Users, Building2, Settings, FileText, LogOut, Search, Database } from 'lucide-react'
+import { LayoutDashboard, Users, Building2, Settings, FileText, LogOut, Database } from 'lucide-react'
 import { useAuth } from '../lib/auth'
-import { isStaff } from '../lib/permissions'
+import { isStaff, rolLabel } from '../lib/permissions'
+import { useTenantActivo } from '../lib/TenantActivoContext'
+
+const INDUSTRIA_LABEL: Record<string, string> = {
+  consumo_masivo: 'Consumo Masivo',
+  educacion: 'Educación',
+  moda: 'Moda',
+}
 
 const navItems = [
   { label: 'Dashboard', icon: LayoutDashboard, path: '/', staffOnly: true },
@@ -15,6 +22,7 @@ const navItems = [
 export default function AdminLayout() {
   const { user, logout } = useAuth()
   const location = useLocation()
+  const { tenantId, tenants, setTenantId, tenant } = useTenantActivo()
   const visibleItems = navItems.filter(i => !i.staffOnly || isStaff(user?.rol))
   const currentPage = visibleItems.find(i => i.path === location.pathname)
 
@@ -29,12 +37,29 @@ export default function AdminLayout() {
           </div>
         </div>
 
-        {/* Tenant selector placeholder */}
+        {/* Tenant selector */}
         <div className="px-4 mb-4">
-          <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-p-lime-border bg-p-lime-bg text-sm font-medium text-p-dark">
-            <Building2 size={14} className="text-p-lime" />
-            <span className="truncate">Admin</span>
-          </div>
+          <label className="text-[10px] font-semibold text-p-gray uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+            <Building2 size={11} />
+            Tenant activo
+          </label>
+          <select
+            value={tenantId}
+            onChange={e => setTenantId(e.target.value)}
+            disabled={tenants.length === 0}
+            className="form-input py-1.5 text-sm w-full"
+            aria-label="Seleccionar tenant activo"
+          >
+            {tenants.length === 0 && <option value="">Cargando…</option>}
+            {tenants.map(t => (
+              <option key={t.id} value={t.id}>{t.nombre}</option>
+            ))}
+          </select>
+          {tenant && (
+            <p className="mt-1 text-[10px] text-p-muted truncate">
+              {INDUSTRIA_LABEL[tenant.industria] ?? tenant.industria}
+            </p>
+          )}
         </div>
 
         {/* Navigation */}
@@ -62,7 +87,7 @@ export default function AdminLayout() {
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-p-dark truncate">{user?.nombreCompleto}</p>
-              <p className="text-xs text-p-gray truncate capitalize">{user?.rol?.replace('_', ' ')}</p>
+              <p className="text-xs text-p-gray truncate">{rolLabel(user?.rol)}</p>
             </div>
             <button
               onClick={logout}
@@ -79,21 +104,16 @@ export default function AdminLayout() {
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
         <header className="px-8 py-5 flex items-center justify-between bg-white border-b border-p-border">
-          <div>
-            <h1 className="text-xl font-bold text-p-dark">
-              {currentPage?.label || 'Dashboard'}
-            </h1>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 px-4 py-2 rounded-lg border border-p-border bg-p-bg">
-              <Search size={15} className="text-p-muted" />
-              <input
-                type="text"
-                placeholder="Buscar..."
-                className="bg-transparent border-none text-sm text-p-dark outline-none w-[160px] placeholder:text-p-muted"
-              />
-            </div>
-          </div>
+          <h1 className="text-xl font-bold text-p-dark">
+            {currentPage?.label || 'Dashboard'}
+          </h1>
+          {tenant && (
+            <span className="text-xs text-p-gray">
+              <span className="text-p-muted">Operando como:</span>{' '}
+              <span className="font-medium text-p-dark">{tenant.nombre}</span>{' '}
+              <span className="badge badge-blue text-[10px] ml-1">{INDUSTRIA_LABEL[tenant.industria] ?? tenant.industria}</span>
+            </span>
+          )}
         </header>
 
         {/* Content */}

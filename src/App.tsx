@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AuthProvider } from './lib/auth'
+import { TenantActivoProvider } from './lib/TenantActivoContext'
 import { ToastProvider } from './components/ToastProvider'
 import ProtectedRoute from './components/ProtectedRoute'
 import AdminLayout from './layouts/AdminLayout'
@@ -25,7 +26,13 @@ function App() {
           <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route element={<ProtectedRoute allowedRoles={['admin', 'consultor_prisier', 'cliente_editor']} />}>
-              <Route element={<AdminLayout />}>
+              <Route
+                element={
+                  <TenantActivoProvider>
+                    <AdminLayout />
+                  </TenantActivoProvider>
+                }
+              >
                 <Route element={<ProtectedRoute allowedRoles={['admin', 'consultor_prisier']} />}>
                   <Route path="/" element={<DashboardPage />} />
                   <Route path="/tenants" element={<TenantsPage />} />

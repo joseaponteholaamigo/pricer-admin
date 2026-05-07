@@ -46,7 +46,7 @@ export default function TenantsPage() {
   }
 
   const { register, handleSubmit, reset, setValue } = useForm<TenantForm>({
-    defaultValues: { industria: 'consumo_masivo', plan: 'starter', estado: 'activo' },
+    defaultValues: { industria: 'consumo_masivo', plan: PLANES[0]?.value ?? '', estado: 'activo' },
   })
 
   const toggleEstadoMutation = useMutation({
@@ -72,7 +72,7 @@ export default function TenantsPage() {
 
   const openCreate = () => {
     setEditingId(null)
-    reset({ nombre: '', industria: 'consumo_masivo', plan: 'basico', estado: 'activo' })
+    reset({ nombre: '', industria: 'consumo_masivo', plan: PLANES[0]?.value ?? '', estado: 'activo' })
     setShowForm(true)
   }
 

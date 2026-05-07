@@ -195,6 +195,137 @@ export type TipoPlantilla =
   | 'elasticidad'
   | 'canales'
   | 'competencia'
+  // Educación
+  | 'programas'
+  | 'facultades_escuelas'
+  | 'niveles_educativos'
+  | 'ciudades'
+  | 'atributos_r010'
+  | 'calificaciones_edu'
+  | 'asignaciones_snies'
+  | 'snies_update'
+
+// ─── Educación — Portafolio ───────────────────────────────────────────────────
+
+export interface ProgramaAcademicoItem {
+  id: string
+  codigo: string
+  nombre: string
+  facultad: string
+  nivel: 'Pregrado' | 'Especialización' | 'Maestría' | 'Doctorado'
+  ciudad: string
+  precioActual: number
+  estudiantesBase: number
+  tenantId: string
+}
+
+export interface SniesItem {
+  id: string
+  codigoSnies: string
+  programa: string
+  universidad: string
+  ciudad: string
+  nivel: 'Pregrado' | 'Especialización' | 'Maestría' | 'Doctorado'
+  modalidad: 'Presencial' | 'Virtual' | 'Híbrido'
+  precioActual: number
+  ultimaActualizacion: string
+}
+
+export interface AsignacionSnies {
+  programaId: string
+  sniesId: string
+}
+
+export interface PortafolioEduData {
+  programas: ProgramaAcademicoItem[]
+  asignaciones: AsignacionSnies[]
+}
+
+// ─── Educación — Facultad/Escuela (P1 2026-05-05) ────────────────────────────
+
+export interface FacultadEscuela {
+  nombre: string
+}
+
+// ─── Educación — Atributos R-010 (reutiliza CategoriaAtributos y AtributoCategoria) ─
+
+// ─── Educación — Calificaciones (reutiliza SkuCalificaciones con programaId) ──
+
+export interface ProgramaCalificaciones {
+  programaId: string
+  programaNombre: string
+  categoria: string
+  atributos: {
+    nombre: string
+    peso: number
+    calificacionPropia: number
+    calificacionesSnies: Record<string, number>   // sniesId → calificacion
+  }[]
+  vpPropio: number
+  vpSnies: Record<string, number>
+}
+
+// ─── Educación — Niveles Educativos (catálogo POR TENANT, 2026-05-06 reemplaza P2)
+
+export interface NivelEducativo {
+  nombre: string
+}
+
+// ─── Educación — Ciudades (catálogo por tenant, 2026-05-05) ──────────────────
+
+export interface CiudadEdu {
+  nombre: string
+}
+
+// ─── Matrices de Preferencia (P5/P12 2026-05-05) ─────────────────────────────
+
+export interface MatrizPreferenciaColumnaOptin {
+  kind: 'optin'
+  columnIndex: 0
+}
+
+export interface MatrizPreferenciaColumnaMarca {
+  kind: 'marca'
+  nombre: string
+  esPropiaTenant: boolean
+  columnIndex: number
+}
+
+export interface MatrizPreferenciaColumnaAtributoNivel {
+  kind: 'atributo'
+  atributoNombre: string
+  nivelNombre: string
+  columnIndex: number
+}
+
+export interface MatrizPreferenciaColumnaPrecio {
+  kind: 'precio'
+  precio: number
+  columnIndex: number
+}
+
+export type MatrizPreferenciaColumna =
+  | MatrizPreferenciaColumnaOptin
+  | MatrizPreferenciaColumnaMarca
+  | MatrizPreferenciaColumnaAtributoNivel
+  | MatrizPreferenciaColumnaPrecio
+
+export interface MatrizPreferencia {
+  id: string
+  tenantId: string
+  tenantNombre: string
+  facultadEscuela: string
+  nivelEducativo: string
+  ciudad: string
+  fechaSubida: string
+  nombreArchivo: string
+  columnas: MatrizPreferenciaColumna[]
+  encuestados: number[][]
+  marcas: string[]
+  marcaPropia: string
+  atributos: Array<{ nombre: string; niveles: string[] }>
+  precios: number[]
+}
 
 export type EstadoImportacion = 'procesando' | 'exitoso' | 'con_advertencias' | 'fallido'
 

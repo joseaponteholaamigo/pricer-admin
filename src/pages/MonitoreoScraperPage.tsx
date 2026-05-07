@@ -5,31 +5,15 @@ import {
   ChevronDown, ChevronUp,
 } from 'lucide-react'
 import api from '../lib/api'
-import type { TenantListItem, ScraperHistorialRow } from '../lib/types'
-import { MAX_FILE_SIZE_BYTES } from '../lib/templateSpecs'
+import type { ScraperHistorialRow } from '../lib/types'
+import { MAX_SCRAPER_FILE_SIZE_BYTES } from '../lib/templateSpecs'
+import { useTenantActivo } from '../lib/TenantActivoContext'
 
 export default function MonitoreoScraperPage() {
-  const [tenantId, setTenantId] = useState('tenant-001')
-
-  const { data: tenants = [] } = useQuery<TenantListItem[]>({
-    queryKey: ['tenants'],
-    queryFn: () => api.get<TenantListItem[]>('tenants').then(r => r.data),
-  })
+  const { tenantId } = useTenantActivo()
 
   return (
     <div className="space-y-6">
-      {/* Tenant selector */}
-      <div className="flex items-center gap-3">
-        <span className="text-sm text-p-gray font-medium">Tenant:</span>
-        <select
-          value={tenantId}
-          onChange={e => setTenantId(e.target.value)}
-          className="form-input py-1.5 text-sm w-48"
-        >
-          {tenants.map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}
-        </select>
-      </div>
-
       <UploadManual tenantId={tenantId} />
       <HistorialSection tenantId={tenantId} />
     </div>
@@ -46,12 +30,13 @@ function UploadManual({ tenantId }: { tenantId: string }) {
   const [result, setResult] = useState<{ procesados: number; errores: string[] } | null>(null)
 
   const handleFile = useCallback(async (file: File) => {
-    if (!file.name.endsWith('.xlsx')) {
-      setResult({ procesados: 0, errores: ['Solo se aceptan archivos .xlsx'] })
+    const lower = file.name.toLowerCase()
+    if (!lower.endsWith('.xlsx') && !lower.endsWith('.csv')) {
+      setResult({ procesados: 0, errores: ['Solo se aceptan archivos .xlsx o .csv'] })
       return
     }
-    if (file.size > MAX_FILE_SIZE_BYTES) {
-      setResult({ procesados: 0, errores: ['El archivo excede el límite de 10MB'] })
+    if (file.size > MAX_SCRAPER_FILE_SIZE_BYTES) {
+      setResult({ procesados: 0, errores: ['El archivo excede el límite de 30 MB'] })
       return
     }
     setUploading(true)
@@ -86,7 +71,7 @@ function UploadManual({ tenantId }: { tenantId: string }) {
         <Upload size={16} className="text-p-lime" /> Carga manual de precios de mercado
       </h3>
       <p className="text-xs text-p-gray mb-4">
-        Formato: Ciudad, Codigo EAN, Producto, [Retailer 1..N]. Precios en 0 o vacíos se ignoran.
+        Formato wide single-table: <span className="font-mono">EAN, Retailer, Fecha, Precio, Promo, Disponibilidad</span>. Una fila por observación. Precios en 0 o vacíos se ignoran.
       </p>
 
       <div
@@ -97,7 +82,7 @@ function UploadManual({ tenantId }: { tenantId: string }) {
         className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all
           ${isDragOver ? 'border-p-lime bg-p-lime/10' : 'border-p-border hover:border-p-muted hover:bg-white/5'}`}
       >
-        <input ref={inputRef} type="file" accept=".xlsx" className="hidden"
+        <input ref={inputRef} type="file" accept=".xlsx,.csv" className="hidden"
           onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = '' }} />
         {uploading ? (
           <div className="flex items-center justify-center gap-3">
@@ -108,8 +93,8 @@ function UploadManual({ tenantId }: { tenantId: string }) {
           <div className="flex items-center justify-center gap-3">
             <Upload className={`w-6 h-6 ${isDragOver ? 'text-p-lime' : 'text-p-muted'}`} />
             <div className="text-left">
-              <p className="text-sm text-p-dark">Arrastra el archivo .xlsx aquí</p>
-              <p className="text-xs text-p-muted">o haz clic para seleccionar (máx. 10MB)</p>
+              <p className="text-sm text-p-dark">Arrastra el archivo .xlsx o .csv aquí</p>
+              <p className="text-xs text-p-muted">o haz clic para seleccionar (máx. 30 MB)</p>
             </div>
           </div>
         )}

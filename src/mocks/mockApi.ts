@@ -798,6 +798,15 @@ const TIPO_LABELS: Record<MockImportacionRecord['tipo'], string> = {
   elasticidad: 'Elasticidad',
   canales: 'Canales',
   competencia: 'Competencia (SKUs)',
+  // Educación
+  programas: 'Programas',
+  facultades_escuelas: 'Facultades/Escuelas',
+  niveles_educativos: 'Niveles Educativos',
+  ciudades: 'Ciudades',
+  atributos_r010: 'Atributos de Valor Percibido',
+  calificaciones_edu: 'Calificaciones Edu',
+  asignaciones_snies: 'Asignaciones SNIES',
+  snies_update: 'Actualizar Base SNIES',
 }
 
 /** Datos de preview simulados con variación por tipo */
@@ -806,14 +815,23 @@ function buildPreviewResumen(tipo: MockImportacionRecord['tipo'], hasErrors: boo
   errores: Array<{ fila: number; columna?: string; mensaje: string }>
 } {
   const baseData: Record<MockImportacionRecord['tipo'], { n: number; a: number }> = {
-    portafolio:    { n: 15, a: 8 },
-    categorias:    { n: 3,  a: 12 },
-    competidores:  { n: 42, a: 18 },
-    atributos:     { n: 8,  a: 4 },
-    calificaciones:{ n: 30, a: 10 },
-    elasticidad:   { n: 12, a: 0 },
-    canales:       { n: 5,  a: 3 },
-    competencia:   { n: 20, a: 6 },
+    portafolio:           { n: 15, a: 8 },
+    categorias:           { n: 3,  a: 12 },
+    competidores:         { n: 42, a: 18 },
+    atributos:            { n: 8,  a: 4 },
+    calificaciones:       { n: 30, a: 10 },
+    elasticidad:          { n: 12, a: 0 },
+    canales:              { n: 5,  a: 3 },
+    competencia:          { n: 20, a: 6 },
+    // Educación
+    programas:            { n: 18, a: 0 },
+    facultades_escuelas:  { n: 4,  a: 0 },
+    niveles_educativos:   { n: 4,  a: 0 },
+    ciudades:             { n: 3,  a: 0 },
+    atributos_r010:       { n: 40, a: 0 },
+    calificaciones_edu:   { n: 90, a: 0 },
+    asignaciones_snies:   { n: 17, a: 0 },
+    snies_update:         { n: 52, a: 0 },
   }
   const { n, a } = baseData[tipo]
   if (hasErrors) {
@@ -839,8 +857,8 @@ function handleImportaciones(method: string, path: string, body: unknown, params
   const user = SEED_USERS.find(u => u.id === userId)
   const tenantId = params.get('tenantId') ?? 'tenant-001'
 
-  // POST /api/admin/importaciones/{tipo}/preview
-  const previewMatch = path.match(/^admin\/importaciones\/(portafolio|categorias|competidores|atributos|calificaciones|elasticidad|canales|competencia)\/preview$/)
+  // POST /api/admin/importaciones/{tipo}/preview (FMCG y Edu)
+  const previewMatch = path.match(/^admin\/importaciones\/(portafolio|categorias|competidores|atributos|calificaciones|elasticidad|canales|competencia|programas|facultades_escuelas|niveles_educativos|ciudades|atributos_r010|calificaciones_edu|asignaciones_snies)\/preview$/)
   if (method === 'POST' && previewMatch) {
     const tipo = previewMatch[1] as MockImportacionRecord['tipo']
 
@@ -898,10 +916,18 @@ function handleImportaciones(method: string, path: string, body: unknown, params
 
     const { tipo, tenantId: pTenantId } = preview
 
-    // Verificar lock nuevamente
-    const locked = (store.importacionesV2[pTenantId] ?? []).some(
-      r => r.tipo === tipo && r.estado === 'procesando'
-    )
+    // Tipos edu usan store.importacionesEdu; el resto usa store.importacionesV2
+    const EDU_TIPOS = new Set(['programas', 'facultades_escuelas', 'niveles_educativos', 'ciudades', 'atributos_r010', 'calificaciones_edu', 'asignaciones_snies'])
+    const isEduTipo = EDU_TIPOS.has(tipo)
+
+    // Verificar lock según store correcto
+    const locked = isEduTipo
+      ? (store.importacionesEdu[pTenantId] ?? []).some(
+          (r: { tipo: string; estado: string }) => r.tipo === tipo && r.estado === 'procesando'
+        )
+      : (store.importacionesV2[pTenantId] ?? []).some(
+          r => r.tipo === tipo && r.estado === 'procesando'
+        )
     if (locked) {
       return Promise.reject({
         response: {
@@ -929,8 +955,13 @@ function handleImportaciones(method: string, path: string, body: unknown, params
       createdAt: now,
     }
 
-    if (!store.importacionesV2[pTenantId]) store.importacionesV2[pTenantId] = []
-    store.importacionesV2[pTenantId].push(record)
+    if (isEduTipo) {
+      if (!store.importacionesEdu[pTenantId]) store.importacionesEdu[pTenantId] = []
+      store.importacionesEdu[pTenantId].push(record as never)
+    } else {
+      if (!store.importacionesV2[pTenantId]) store.importacionesV2[pTenantId] = []
+      store.importacionesV2[pTenantId].push(record)
+    }
 
     // Eliminar preview usado
     delete store.importacionPreviews[previewId]
@@ -938,6 +969,19 @@ function handleImportaciones(method: string, path: string, body: unknown, params
     // Simular transición procesando → estado final en 2.5 segundos
     const { resumen, errores } = buildPreviewResumen(tipo, false)
     setTimeout(() => {
+      if (isEduTipo) {
+        const idx = store.importacionesEdu[pTenantId].findIndex((r: { id: string }) => r.id === importId)
+        if (idx !== -1) {
+          const { nuevas, actualizadas, omitidas } = resumen
+          const estadoFinal: 'exitoso' | 'con_advertencias' = omitidas > 0 ? 'con_advertencias' : 'exitoso'
+          ;(store.importacionesEdu[pTenantId] as unknown as Record<string, unknown>[])[idx] = {
+            ...(store.importacionesEdu[pTenantId] as unknown as Record<string, unknown>[])[idx],
+            estado: estadoFinal, filasNuevas: nuevas, filasActualizadas: actualizadas,
+            filasOmitidas: omitidas, errores, finalizedAt: new Date().toISOString(),
+          }
+        }
+        return
+      }
       const idx = store.importacionesV2[pTenantId].findIndex(r => r.id === importId)
       if (idx !== -1) {
         const { nuevas, actualizadas, omitidas } = resumen
@@ -1053,6 +1097,364 @@ function handleImportaciones(method: string, path: string, body: unknown, params
   return null
 }
 
+// ─── Educación — Reglas ───────────────────────────────────────────────────────
+
+function handleReglasEdu(method: string, path: string, body: unknown, params: URLSearchParams) {
+  const tid = params.get('tenantId') ?? 'tenant-edu-001'
+
+  // ── Portafolio Edu ──────────────────────────────────────────────────────────
+  if (method === 'GET' && path === 'reglas/portafolio-edu') {
+    const programas = store.programasAcademicos[tid] ?? []
+    const asignaciones = store.asignacionesSnies[tid] ?? []
+    return ok({ programas, asignaciones })
+  }
+
+  if (method === 'PUT' && path === 'reglas/portafolio-edu') {
+    const { programas, asignaciones } = body as {
+      programas: typeof store.programasAcademicos['tenant-edu-001']
+      asignaciones: typeof store.asignacionesSnies['tenant-edu-001']
+    }
+    store.programasAcademicos[tid] = programas
+    store.asignacionesSnies[tid] = asignaciones
+    return ok({ programas: store.programasAcademicos[tid], asignaciones: store.asignacionesSnies[tid] })
+  }
+
+  // PUT solo asignaciones
+  if (method === 'PUT' && path === 'reglas/asignaciones-snies') {
+    const { asignaciones } = body as { asignaciones: typeof store.asignacionesSnies['tenant-edu-001'] }
+    store.asignacionesSnies[tid] = asignaciones
+    return ok(store.asignacionesSnies[tid])
+  }
+
+  // ── Categorías Académicas ───────────────────────────────────────────────────
+  if (method === 'GET' && path === 'reglas/categorias-academicas') {
+    return ok(store.categoriasAcademicas[tid] ?? [])
+  }
+
+  if (method === 'PUT' && path === 'reglas/categorias-academicas') {
+    const { categorias } = body as { categorias: Array<{ nombre: string }> }
+    store.categoriasAcademicas[tid] = categorias
+    return ok(store.categoriasAcademicas[tid])
+  }
+
+  // ── Competidores SNIES (read-only base global) ──────────────────────────────
+  if (method === 'GET' && path === 'reglas/competidores-snies') {
+    const q = params.get('q')?.toLowerCase() ?? ''
+    const nivel = params.get('nivel') ?? ''
+    const ciudad = params.get('ciudad') ?? ''
+    let items = [...store.sniesGlobal]
+    if (q) items = items.filter(s => s.programa.toLowerCase().includes(q) || s.universidad.toLowerCase().includes(q))
+    if (nivel) items = items.filter(s => s.nivel === nivel)
+    if (ciudad) items = items.filter(s => s.ciudad === ciudad)
+    const page = Math.max(1, parseInt(params.get('page') ?? '1'))
+    const pageSize = Math.min(1000, parseInt(params.get('page_size') ?? '50'))
+    const paged = items.slice((page - 1) * pageSize, page * pageSize)
+    return ok({ items: paged, total: items.length })
+  }
+
+  // ── Atributos R-010 — edu (por par Facultad × Ciudad, P3 2026-05-05) ────────
+  if (method === 'GET' && path === 'reglas/atributos-r010') {
+    const facultad = params.get('facultad') ?? ''
+    const ciudad   = params.get('ciudad')   ?? ''
+    if (facultad && ciudad) {
+      // Edu: devolver atributos del par
+      const par = `${facultad}|${ciudad}`
+      const parMap = store.r010AtributosPar[tid] ?? {}
+      return ok(parMap[par] ?? [])
+    }
+    // FMCG fallback (sin facultad ni ciudad): devolver estructura por categoría
+    return ok(store.r010Atributos[tid] ?? [])
+  }
+
+  if (method === 'PUT' && path === 'reglas/atributos-r010') {
+    const b = body as { facultad?: string; ciudad?: string; categoria?: string; atributos: Array<{ nombre: string; peso: number; orden: number }> }
+    if (b.facultad && b.ciudad) {
+      // Edu: guardar atributos del par
+      const par = `${b.facultad}|${b.ciudad}`
+      if (!store.r010AtributosPar[tid]) store.r010AtributosPar[tid] = {}
+      store.r010AtributosPar[tid][par] = b.atributos
+      return ok({ facultad: b.facultad, ciudad: b.ciudad, atributos: b.atributos })
+    }
+    // FMCG fallback
+    const { categoria, atributos } = b as { categoria: string; atributos: typeof b.atributos }
+    if (!store.r010Atributos[tid]) store.r010Atributos[tid] = []
+    const idx = store.r010Atributos[tid].findIndex(c => c.categoria === categoria)
+    if (idx === -1) store.r010Atributos[tid].push({ categoria, atributos })
+    else store.r010Atributos[tid][idx].atributos = atributos
+    return ok({ categoria, atributos })
+  }
+
+  // ── Matrices de Preferencia (P12 2026-05-05 — por tenant, admin Prisier + consultor_prisier) ──
+  if (method === 'GET' && path === 'reglas/matrices-preferencia') {
+    return ok(store.matricesPreferencia)
+  }
+
+  if (method === 'POST' && path === 'reglas/matrices-preferencia') {
+    const m = body as typeof store.matricesPreferencia[0]
+    const id = `mp-${Date.now()}`
+    // upsert por lock 4-tupla: (tenantId, facultadEscuela, nivelEducativo, ciudad)
+    const idx = store.matricesPreferencia.findIndex(x =>
+      x.tenantId === m.tenantId &&
+      x.facultadEscuela === m.facultadEscuela &&
+      x.nivelEducativo === m.nivelEducativo &&
+      x.ciudad === m.ciudad
+    )
+    const stored = { ...m, id, fechaSubida: new Date().toISOString() }
+    if (idx === -1) store.matricesPreferencia.push(stored)
+    else store.matricesPreferencia[idx] = stored
+    return ok(stored)
+  }
+
+  if (method === 'DELETE' && path.startsWith('reglas/matrices-preferencia/')) {
+    const id = path.split('/').pop()!
+    store.matricesPreferencia = store.matricesPreferencia.filter(x => x.id !== id)
+    return ok({ deleted: id })
+  }
+
+  // ── Calificaciones Edu ──────────────────────────────────────────────────────
+  if (method === 'GET' && path === 'reglas/calificaciones-edu') {
+    const programaId = params.get('programaId')
+    if (!programaId) return Promise.reject({ response: { status: 400 } })
+    const programa = (store.programasAcademicos[tid] ?? []).find(p => p.id === programaId)
+    if (!programa) return Promise.reject({ response: { status: 404 } })
+    const par = `${programa.facultad}|${programa.ciudad}`
+    const parAtributos = (store.r010AtributosPar[tid] ?? {})[par] ?? []
+    if (parAtributos.length === 0) return ok(null)
+    const catAttrs = { atributos: parAtributos }
+    const sniesAsignados = (store.asignacionesSnies[tid] ?? []).filter(a => a.programaId === programaId).map(a => a.sniesId)
+    const cals = store.r010Calificaciones[tid] ?? []
+    const atributos = catAttrs.atributos.map(a => {
+      const row = cals.find(c => c.programaId === programaId && c.atributo === a.nombre)
+      const califsSnies: Record<string, number> = {}
+      for (const sniesId of sniesAsignados) {
+        califsSnies[sniesId] = row?.calificacionesSnies[sniesId] ?? 0
+      }
+      return { nombre: a.nombre, peso: a.peso, calificacionPropia: row?.calificacionPropia ?? 0, calificacionesSnies: califsSnies }
+    })
+    const vpPropio = atributos.reduce((s, a) => s + a.peso * a.calificacionPropia, 0)
+    const vpSnies: Record<string, number> = {}
+    for (const sniesId of sniesAsignados) {
+      vpSnies[sniesId] = atributos.reduce((s, a) => s + a.peso * (a.calificacionesSnies[sniesId] ?? 0), 0)
+    }
+    return ok({ programaId, programaNombre: programa.nombre, atributos, vpPropio, vpSnies })
+  }
+
+  if (method === 'PUT' && path === 'reglas/calificaciones-edu') {
+    const { programaId, modo, sniesId, calificaciones } = body as {
+      programaId: string; modo: 'propio' | 'competidor'; sniesId: string | null
+      calificaciones: Record<string, number>
+    }
+    if (!store.r010Calificaciones[tid]) store.r010Calificaciones[tid] = []
+    for (const [atributo, valor] of Object.entries(calificaciones)) {
+      const idx = store.r010Calificaciones[tid].findIndex(c => c.programaId === programaId && c.atributo === atributo)
+      if (idx === -1) {
+        store.r010Calificaciones[tid].push({
+          programaId, atributo,
+          calificacionPropia: modo === 'propio' ? valor : 0,
+          calificacionesSnies: modo === 'competidor' && sniesId ? { [sniesId]: valor } : {},
+        })
+      } else {
+        if (modo === 'propio') {
+          store.r010Calificaciones[tid][idx].calificacionPropia = valor
+        } else if (sniesId) {
+          store.r010Calificaciones[tid][idx].calificacionesSnies = {
+            ...store.r010Calificaciones[tid][idx].calificacionesSnies,
+            [sniesId]: valor,
+          }
+        }
+      }
+    }
+    return ok({ ok: true })
+  }
+
+  // ── Facultades/Escuelas ─────────────────────────────────────────────────────
+  if (method === 'GET' && path === 'reglas/facultades-escuelas') {
+    return ok(store.facultadesEscuelas[tid] ?? [])
+  }
+
+  if (method === 'PUT' && path === 'reglas/facultades-escuelas') {
+    const { facultades } = body as { facultades: typeof store.facultadesEscuelas['tenant-edu-001'] }
+    store.facultadesEscuelas[tid] = facultades
+    return ok(store.facultadesEscuelas[tid])
+  }
+
+  // ── Niveles Educativos (POR TENANT, 2026-05-06 reemplaza P2 global) ──────────
+  if (method === 'GET' && path === 'reglas/niveles-educativos') {
+    return ok(store.nivelesEducativos[tid] ?? [])
+  }
+
+  if (method === 'PUT' && path === 'reglas/niveles-educativos') {
+    const { niveles } = body as { niveles: typeof store.nivelesEducativos['tenant-edu-001'] }
+    store.nivelesEducativos[tid] = niveles
+    return ok(store.nivelesEducativos[tid])
+  }
+
+  // ── Ciudades ────────────────────────────────────────────────────────────────
+  if (method === 'GET' && path === 'reglas/ciudades') {
+    return ok(store.ciudadesEdu[tid] ?? [])
+  }
+
+  if (method === 'PUT' && path === 'reglas/ciudades') {
+    const { ciudades } = body as { ciudades: typeof store.ciudadesEdu['tenant-edu-001'] }
+    store.ciudadesEdu[tid] = ciudades
+    return ok(store.ciudadesEdu[tid])
+  }
+
+  return null
+}
+
+// ─── Importaciones Educación ──────────────────────────────────────────────────
+
+const TIPO_LABELS_EDU: Record<string, string> = {
+  programas: 'Programas',
+  facultades_escuelas: 'Facultades/Escuelas',
+  niveles_educativos: 'Niveles Educativos',
+  ciudades: 'Ciudades',
+  atributos_r010: 'Atributos de Valor Percibido',
+  calificaciones_edu: 'Calificaciones Edu',
+  asignaciones_snies: 'Asignaciones SNIES',
+  snies_update: 'Actualización SNIES',
+}
+
+function buildPreviewResumenEdu(tipo: string): {
+  resumen: { nuevas: number; actualizadas: number; omitidas: number }
+  errores: Array<{ fila: number; columna?: string; mensaje: string }>
+} {
+  const base: Record<string, { n: number; a: number }> = {
+    programas:            { n: 5,  a: 3 },
+    facultades_escuelas:  { n: 4,  a: 0 },
+    niveles_educativos:   { n: 4,  a: 0 },
+    ciudades:             { n: 3,  a: 0 },
+    atributos_r010:       { n: 8,  a: 2 },
+    calificaciones_edu:   { n: 20, a: 5 },
+    asignaciones_snies:   { n: 12, a: 0 },
+    snies_update:         { n: 50, a: 15 },
+  }
+  const { n, a } = base[tipo] ?? { n: 5, a: 0 }
+  return { resumen: { nuevas: n, actualizadas: a, omitidas: 0 }, errores: [] }
+}
+
+function handleImportacionesEdu(method: string, path: string, _body: unknown, params: URLSearchParams) {
+  const token = typeof window !== 'undefined' ? (localStorage.getItem('access_token') ?? '') : ''
+  const userId = token.replace('mock_', '')
+  const user = SEED_USERS.find(u => u.id === userId)
+  const tenantId = params.get('tenantId') ?? 'tenant-edu-001'
+
+  // POST /api/admin/importaciones/snies-update/preview — lock global, solo admin
+  if (method === 'POST' && path === 'admin/importaciones/snies-update/preview') {
+    if (user?.rol !== 'admin') {
+      return Promise.reject({ response: { status: 403, data: { error: 'Solo el rol admin puede actualizar la base SNIES.' } } })
+    }
+    if (store.sniesUpdateLocked) {
+      return Promise.reject({ response: { status: 409, data: { error: 'Hay una importación de SNIES en curso a nivel plataforma, esperá a que termine.' } } })
+    }
+    const previewId = `prev-snies-${newId()}`
+    store.importacionPreviews[previewId] = { tipo: 'snies_update' as typeof store.importacionPreviews[string]['tipo'], tenantId: '__global__' }
+    const { resumen, errores } = buildPreviewResumenEdu('snies_update')
+    return new Promise(resolve => setTimeout(() => resolve({ data: { previewId, tipo: 'snies_update', resumen, errores }, headers: {} }), 300))
+  }
+
+  // POST /api/admin/importaciones/snies-update/{previewId}/confirmar
+  const sniesConfirmarMatch = path.match(/^admin\/importaciones\/snies-update\/(prev-[\w-]+)\/confirmar$/)
+  if (method === 'POST' && sniesConfirmarMatch) {
+    if (user?.rol !== 'admin') {
+      return Promise.reject({ response: { status: 403, data: { error: 'Solo el rol admin puede confirmar actualizaciones SNIES.' } } })
+    }
+    const previewId = sniesConfirmarMatch[1]
+    if (!store.importacionPreviews[previewId]) {
+      return Promise.reject({ response: { status: 410, data: { error: 'Preview expirado. Volvé a subir el archivo.' } } })
+    }
+    if (store.sniesUpdateLocked) {
+      return Promise.reject({ response: { status: 409, data: { error: 'Hay una importación de SNIES en curso a nivel plataforma, esperá a que termine.' } } })
+    }
+    store.sniesUpdateLocked = true
+    delete store.importacionPreviews[previewId]
+    const importId = newId()
+    const now = new Date().toISOString()
+    const record = {
+      id: importId, tenantId: '__global__', tipo: 'snies_update' as 'competencia',
+      usuarioNombre: user?.nombreCompleto ?? 'Admin Prisier', usuarioId: user?.id ?? 'user-admin-001',
+      archivo: 'snies-update.xlsx', estado: 'procesando' as const,
+      filasNuevas: 0, filasActualizadas: 0, filasOmitidas: 0, errores: [], blobUrl: null, createdAt: now,
+    }
+    if (!store.importacionesV2['__global__']) store.importacionesV2['__global__'] = []
+    store.importacionesV2['__global__'].push(record)
+    const { resumen } = buildPreviewResumenEdu('snies_update')
+    setTimeout(() => {
+      store.sniesUpdateLocked = false
+      const idx = store.importacionesV2['__global__'].findIndex(r => r.id === importId)
+      if (idx !== -1) {
+        store.importacionesV2['__global__'][idx] = {
+          ...store.importacionesV2['__global__'][idx],
+          estado: 'exitoso', filasNuevas: resumen.nuevas, filasActualizadas: resumen.actualizadas,
+          filasOmitidas: resumen.omitidas, finalizedAt: new Date().toISOString(),
+        }
+      }
+    }, 2500)
+    return ok({ importId })
+  }
+
+  // POST /api/admin/importaciones/edu/{tipo}/preview
+  const eduPreviewMatch = path.match(/^admin\/importaciones\/edu\/(programas|facultades_escuelas|niveles_educativos|ciudades|atributos_r010|calificaciones_edu|asignaciones_snies)\/preview$/)
+  if (method === 'POST' && eduPreviewMatch) {
+    const tipo = eduPreviewMatch[1]
+    const locked = (store.importacionesEdu[tenantId] ?? []).some(
+      (r: { tipo: string; estado: string }) => r.tipo === tipo && r.estado === 'procesando'
+    )
+    if (locked) {
+      return Promise.reject({ response: { status: 409, data: { error: `Hay una importación de ${TIPO_LABELS_EDU[tipo]} en curso, esperá a que termine.` } } })
+    }
+    const previewId = `prev-edu-${newId()}`
+    store.importacionPreviews[previewId] = { tipo: tipo as typeof store.importacionPreviews[string]['tipo'], tenantId }
+    const { resumen, errores } = buildPreviewResumenEdu(tipo)
+    return new Promise(resolve => setTimeout(() => resolve({ data: { previewId, tipo, resumen, errores }, headers: {} }), 300))
+  }
+
+  // POST /api/admin/importaciones/edu/{previewId}/confirmar
+  const eduConfirmarMatch = path.match(/^admin\/importaciones\/edu\/(prev-[\w-]+)\/confirmar$/)
+  if (method === 'POST' && eduConfirmarMatch) {
+    const previewId = eduConfirmarMatch[1]
+    const preview = store.importacionPreviews[previewId]
+    if (!preview) return Promise.reject({ response: { status: 410, data: { error: 'Preview expirado. Volvé a subir el archivo.' } } })
+    const { tipo, tenantId: pTenantId } = preview
+    delete store.importacionPreviews[previewId]
+    const importId = newId()
+    const now = new Date().toISOString()
+    const record = {
+      id: importId, tenantId: pTenantId, tipo: tipo as 'competencia',
+      usuarioNombre: user?.nombreCompleto ?? 'Admin Prisier', usuarioId: user?.id ?? 'user-admin-001',
+      archivo: `${tipo}-upload.xlsx`, estado: 'procesando' as const,
+      filasNuevas: 0, filasActualizadas: 0, filasOmitidas: 0, errores: [], blobUrl: null, createdAt: now,
+    }
+    if (!store.importacionesEdu[pTenantId]) store.importacionesEdu[pTenantId] = []
+    store.importacionesEdu[pTenantId].push(record as never)
+    const { resumen, errores } = buildPreviewResumenEdu(tipo)
+    setTimeout(() => {
+      const idx = store.importacionesEdu[pTenantId].findIndex((r: { id: string }) => r.id === importId)
+      if (idx !== -1) {
+        const estadoFinal = errores.length > 0 ? 'con_advertencias' : 'exitoso'
+        ;(store.importacionesEdu[pTenantId] as unknown as Record<string, unknown>[])[idx] = {
+          ...(store.importacionesEdu[pTenantId] as unknown as Record<string, unknown>[])[idx],
+          estado: estadoFinal, filasNuevas: resumen.nuevas, filasActualizadas: resumen.actualizadas,
+          filasOmitidas: resumen.omitidas, errores, finalizedAt: new Date().toISOString(),
+        }
+      }
+    }, 2500)
+    return ok({ importId })
+  }
+
+  // GET /api/admin/importaciones/edu?tenantId=
+  if (method === 'GET' && path === 'admin/importaciones/edu') {
+    const items = [...(store.importacionesEdu[tenantId] ?? [])].reverse()
+    const total = items.length
+    const page = Math.max(1, parseInt(params.get('page') ?? '1'))
+    const pageSize = Math.min(50, parseInt(params.get('page_size') ?? '20'))
+    return ok({ items: items.slice((page - 1) * pageSize, page * pageSize), total, page, pageSize })
+  }
+
+  return null
+}
+
 // ─── Router principal ─────────────────────────────────────────────────────────
 function route<T>(method: string, rawUrl: string, body?: unknown): Promise<{ data: T; headers: Record<string, string> }> {
   const { path, params } = parseUrl(rawUrl)
@@ -1090,8 +1492,25 @@ function route<T>(method: string, rawUrl: string, body?: unknown): Promise<{ dat
     if (r) return r as Promise<{ data: T; headers: Record<string, string> }>
   }
 
+  // IMPORTANTE: las rutas edu deben evaluarse ANTES que las FMCG porque la regex
+  // genérica `getOneMatch` de handleImportaciones (`admin/importaciones/{id}`)
+  // matchearía `admin/importaciones/edu` y devolvería 404.
+  if (path.startsWith('admin/importaciones/edu') || path.startsWith('admin/importaciones/snies-update')) {
+    const r = handleImportacionesEdu(method, path, body, params)
+    if (r) return r as Promise<{ data: T; headers: Record<string, string> }>
+  }
+
   if (path === 'admin/importaciones' || path.startsWith('admin/importaciones/')) {
     const r = handleImportaciones(method, path, body, params)
+    if (r) return r as Promise<{ data: T; headers: Record<string, string> }>
+  }
+
+  if (path.startsWith('reglas/portafolio-edu') || path.startsWith('reglas/asignaciones-snies') ||
+      path.startsWith('reglas/facultades-escuelas') || path.startsWith('reglas/niveles-educativos') ||
+      path.startsWith('reglas/ciudades') || path.startsWith('reglas/competidores-snies') ||
+      path.startsWith('reglas/atributos-r010') || path.startsWith('reglas/calificaciones-edu') ||
+      path.startsWith('reglas/matrices-preferencia')) {
+    const r = handleReglasEdu(method, path, body, params)
     if (r) return r as Promise<{ data: T; headers: Record<string, string> }>
   }
 

@@ -6,6 +6,7 @@ import {
   ArrowRight, Activity, AlertCircle, CheckCircle2, Clock,
 } from 'lucide-react'
 import api from '../lib/api'
+import { useTenantActivo } from '../lib/TenantActivoContext'
 import type { TenantListItem, UserListItem, ScraperHistorialRow, TenantActividadItem, ScraperStatus } from '../lib/types'
 
 function timeAgo(dateStr: string): string {
@@ -27,6 +28,7 @@ const SCRAPER_BADGE: Record<string, string> = {
 
 export default function DashboardPage() {
   const navigate = useNavigate()
+  const { tenantId, tenant } = useTenantActivo()
 
   const { data: tenants = [] } = useQuery<TenantListItem[]>({
     queryKey: ['tenants'],
@@ -44,13 +46,15 @@ export default function DashboardPage() {
   })
 
   const { data: cargas = [] } = useQuery<ScraperHistorialRow[]>({
-    queryKey: ['scraper-historial-dashboard'],
-    queryFn: () => api.get<ScraperHistorialRow[]>('admin/scraper/historial?tenantId=tenant-001').then(r => r.data),
+    queryKey: ['scraper-historial-dashboard', tenantId],
+    queryFn: () => api.get<ScraperHistorialRow[]>(`admin/scraper/historial?tenantId=${tenantId}`).then(r => r.data),
+    enabled: !!tenantId,
   })
 
   const { data: scraperStatus } = useQuery<ScraperStatus>({
-    queryKey: ['scraper-status-dashboard'],
-    queryFn: () => api.get<ScraperStatus>('admin/scraper/status?tenantId=tenant-001').then(r => r.data),
+    queryKey: ['scraper-status-dashboard', tenantId],
+    queryFn: () => api.get<ScraperStatus>(`admin/scraper/status?tenantId=${tenantId}`).then(r => r.data),
+    enabled: !!tenantId,
     staleTime: 60_000,
   })
 
@@ -77,7 +81,7 @@ export default function DashboardPage() {
     {
       label: 'Precios capturados',
       value: totalPrecios.toLocaleString('es-CO'),
-      sub: `${cargas.length} cargas realizadas`,
+      sub: tenant ? `${tenant.nombre} · ${cargas.length} cargas` : `${cargas.length} cargas realizadas`,
       icon: DollarSign,
       color: 'text-p-lime',
       to: '/scraper',

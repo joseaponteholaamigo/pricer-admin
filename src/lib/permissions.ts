@@ -32,3 +32,15 @@ export function isCliente(rol: RolInput): boolean {
 export function isStaff(rol: RolInput): boolean {
   return isAdmin(rol) || isConsultorPrisier(rol)
 }
+
+const ROL_LABELS: Record<string, string> = {
+  admin: 'Admin',
+  consultor_prisier: 'Consultor Prisier',
+  cliente_editor: 'Cliente — Editor',
+  cliente_visualizador: 'Cliente — Visualizador',
+}
+
+export function rolLabel(rol: RolInput): string {
+  if (!rol) return ''
+  return ROL_LABELS[rol] ?? rol
+}

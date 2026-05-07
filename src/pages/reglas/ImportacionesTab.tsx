@@ -2,7 +2,7 @@ import { useState, useCallback, Fragment } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  Plus, ChevronDown, ChevronUp, Download, AlertTriangle, CheckCircle2, Loader2, Upload,
+  Plus, ChevronDown, ChevronUp, Download, AlertTriangle, CheckCircle2, Loader2, Upload, Info,
 } from 'lucide-react'
 import api from '../../lib/api'
 import type {
@@ -15,12 +15,24 @@ import EmptyState from '../../components/EmptyState'
 import { useToast } from '../../components/useToast'
 import { downloadBlob } from '../../lib/download'
 import UploadPlantillaModal from '../../components/UploadPlantillaModal'
+import { useAuth } from '../../lib/auth'
+import { isAdmin } from '../../lib/permissions'
 
-// ─── Utilidades visuales ──────────────────────────────────────────────────────
+// ─── verticalKey: 'r002' = FMCG (default), 'r010' = Educación ────────────────
 
-const TIPOS: TipoPlantilla[] = [
+type VerticalKey = 'r002' | 'r010'
+
+// ─── Arrays de tipos por vertical ────────────────────────────────────────────
+
+const TIPOS_FMCG: TipoPlantilla[] = [
   'portafolio', 'categorias', 'competidores', 'atributos', 'calificaciones', 'elasticidad', 'canales', 'competencia',
 ]
+
+const TIPOS_EDU: TipoPlantilla[] = [
+  'programas', 'facultades_escuelas', 'niveles_educativos', 'ciudades', 'atributos_r010', 'calificaciones_edu', 'asignaciones_snies',
+]
+
+// ─── Utilidades visuales ──────────────────────────────────────────────────────
 
 function tipoLabel(tipo: TipoPlantilla): string {
   return TEMPLATE_SPECS[tipo].label
@@ -106,7 +118,7 @@ function useFiltros() {
   return { filtros, setFiltros }
 }
 
-// ─── Detalle modal ────────────────────────────────────────────────────────────
+// ─── Detalle drawer ───────────────────────────────────────────────────────────
 
 interface DetalleDrawerProps {
   record: ImportacionRecord
@@ -250,17 +262,27 @@ interface ImportacionListResponse {
   pageSize: number
 }
 
-export default function ImportacionesTab({ tenantId }: { tenantId: string }) {
+export default function ImportacionesTab({ tenantId, verticalKey = 'r002' }: { tenantId: string; verticalKey?: VerticalKey }) {
+  const isEdu = verticalKey === 'r010'
   const queryClient = useQueryClient()
   const toast = useToast()
   const { filtros, setFiltros } = useFiltros()
+  const { user } = useAuth()
+  const userIsAdmin = isAdmin(user?.rol)
 
   const [modalOpen, setModalOpen] = useState(false)
-  const [modalTipo, setModalTipo] = useState<TipoPlantilla>('portafolio')
+  const [modalTipo, setModalTipo] = useState<TipoPlantilla>(isEdu ? 'programas' : 'portafolio')
   const [detalle, setDetalle] = useState<ImportacionRecord | null>(null)
   const [expanded, setExpanded] = useState<string | null>(null)
+  const [sniesModalOpen, setSniesModalOpen] = useState(false)
 
-  const queryKey = ['admin-importaciones', tenantId, filtros] as const
+  // Arrays de tipos según vertical
+  const TIPOS = isEdu ? TIPOS_EDU : TIPOS_FMCG
+  const defaultTipo = isEdu ? 'programas' : 'portafolio'
+
+  // Endpoints según vertical
+  const listEndpoint = isEdu ? 'admin/importaciones/edu' : 'admin/importaciones'
+  const queryKey = [isEdu ? 'admin-importaciones-edu' : 'admin-importaciones', tenantId, filtros] as const
 
   const { data, isLoading, isError, refetch } = useQuery<ImportacionListResponse>({
     queryKey,
@@ -271,10 +293,9 @@ export default function ImportacionesTab({ tenantId }: { tenantId: string }) {
       if (filtros.desde) p.set('desde', filtros.desde)
       if (filtros.hasta) p.set('hasta', filtros.hasta)
       if (filtros.usuario) p.set('usuario', filtros.usuario)
-      return api.get<ImportacionListResponse>(`admin/importaciones?${p}`).then(r => r.data)
+      return api.get<ImportacionListResponse>(`${listEndpoint}?${p}`).then(r => r.data)
     },
     staleTime: 5_000,
-    // Refetch cada 3s si hay alguna importación en estado procesando
     refetchInterval: (query) => {
       const items = query.state.data?.items ?? []
       return items.some(r => r.estado === 'procesando') ? 3_000 : false
@@ -290,10 +311,19 @@ export default function ImportacionesTab({ tenantId }: { tenantId: string }) {
   }
 
   const handleConfirmed = useCallback((importId: string) => {
-    // Invalidar cache para reflejar el nuevo registro
-    queryClient.invalidateQueries({ queryKey: ['admin-importaciones', tenantId] })
+    queryClient.invalidateQueries({ queryKey: [isEdu ? 'admin-importaciones-edu' : 'admin-importaciones', tenantId] })
+    if (isEdu) {
+      // También refrescar snies-global si es una actualización de base SNIES
+      queryClient.invalidateQueries({ queryKey: ['snies-global'] })
+    }
     toast.success(`Importación enviada (ID: ${importId.slice(-6)})`)
-  }, [queryClient, tenantId, toast])
+  }, [queryClient, tenantId, toast, isEdu])
+
+  const handleSniesConfirmed = useCallback((importId: string) => {
+    queryClient.invalidateQueries({ queryKey: ['snies-global'] })
+    setSniesModalOpen(false)
+    toast.success(`Base SNIES actualizada (ID: ${importId.slice(-6)})`)
+  }, [queryClient, toast])
 
   const handleDownloadAnotado = useCallback(async (id: string) => {
     try {
@@ -311,19 +341,45 @@ export default function ImportacionesTab({ tenantId }: { tenantId: string }) {
         <div>
           <h1 className="text-lg font-semibold text-p-dark">Importaciones</h1>
           <p className="text-sm text-p-gray mt-0.5">
-            Cargá datos masivos al tenant desde plantillas Excel. Cada importación pasa por un preview antes de aplicarse.
+            {isEdu
+              ? 'Carga masiva de datos educativos: programas, categorías, atributos, calificaciones y asignaciones SNIES.'
+              : 'Cargá datos masivos al tenant desde plantillas Excel. Cada importación pasa por un preview antes de aplicarse.'}
           </p>
         </div>
-        <div className="shrink-0 relative group">
+        <div className="shrink-0">
           <button
             type="button"
-            onClick={() => openModal('portafolio')}
+            onClick={() => openModal(defaultTipo as TipoPlantilla)}
             className="btn-primary whitespace-nowrap"
           >
             <Plus size={16} aria-hidden /> Nueva importación
           </button>
         </div>
       </div>
+
+      {/* Actualizar Base SNIES — solo edu, solo admin */}
+      {isEdu && userIsAdmin && (
+        <div className="card mb-5 border-blue-100 bg-blue-50/40">
+          <div className="flex items-start gap-3">
+            <Info size={16} className="text-blue-600 shrink-0 mt-0.5" aria-hidden />
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-blue-900 mb-0.5">Actualizar Base SNIES global</p>
+              <p className="text-xs text-blue-700">
+                La base SNIES es compartida entre todos los tenants educación. Esta operación reemplaza completamente
+                los datos de competidores SNIES. Solo disponible para rol Admin.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSniesModalOpen(true)}
+              className="btn-secondary text-xs py-1.5 shrink-0 whitespace-nowrap"
+              aria-label="Subir actualización de base SNIES"
+            >
+              <Upload size={12} aria-hidden /> Actualizar SNIES
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Acceso rápido por tipo */}
       <div className="flex flex-wrap gap-2 mb-5">
@@ -430,8 +486,10 @@ export default function ImportacionesTab({ tenantId }: { tenantId: string }) {
                     <td colSpan={6}>
                       <EmptyState
                         title="Sin importaciones"
-                        description="Aún no se ha realizado ninguna importación para este tenant. Usá el botón 'Nueva importación' para comenzar."
-                        action={{ label: 'Nueva importación', onClick: () => openModal('portafolio') }}
+                        description={isEdu
+                          ? 'Aún no se han realizado importaciones para este tenant educativo. Comienza cargando tus programas académicos.'
+                          : "Aún no se ha realizado ninguna importación para este tenant. Usá el botón 'Nueva importación' para comenzar."}
+                        action={{ label: 'Nueva importación', onClick: () => openModal(defaultTipo as TipoPlantilla) }}
                       />
                     </td>
                   </tr>
@@ -506,7 +564,7 @@ export default function ImportacionesTab({ tenantId }: { tenantId: string }) {
         )}
       </div>
 
-      {/* Modal de upload */}
+      {/* Modal de upload (tipos normales) */}
       <UploadPlantillaModal
         tipo={modalTipo}
         tenantId={tenantId}
@@ -514,6 +572,17 @@ export default function ImportacionesTab({ tenantId }: { tenantId: string }) {
         onClose={() => setModalOpen(false)}
         onConfirmed={handleConfirmed}
       />
+
+      {/* Modal actualización SNIES global (solo admin edu) */}
+      {isEdu && userIsAdmin && (
+        <UploadPlantillaModal
+          tipo="snies_update"
+          tenantId={tenantId}
+          isOpen={sniesModalOpen}
+          onClose={() => setSniesModalOpen(false)}
+          onConfirmed={handleSniesConfirmed}
+        />
+      )}
 
       {/* Drawer de detalle */}
       {detalle && (

@@ -53,6 +53,48 @@ export const TEMPLATE_SPECS: Record<TipoPlantilla, TemplateSpec> = {
     headers: ['EAN', 'Producto', 'Marca', 'Categoría', 'PVP Referencia'],
     label: 'Competencia (SKUs)',
   },
+  // ─── Vertical Educación ────────────────────────────────────────────────────
+  programas: {
+    sheetName: 'Programas',
+    headers: ['Código Programa', 'Nombre', 'Facultad/Escuela', 'Nivel Educativo', 'Ciudad', 'Precio Actual'],
+    label: 'Programas',
+  },
+  facultades_escuelas: {
+    sheetName: 'Facultades',
+    headers: ['Facultad/Escuela'],
+    label: 'Facultades/Escuelas',
+  },
+  niveles_educativos: {
+    sheetName: 'Niveles',
+    headers: ['Nivel Educativo'],
+    label: 'Niveles Educativos',
+  },
+  ciudades: {
+    sheetName: 'Ciudades',
+    headers: ['Ciudad'],
+    label: 'Ciudades',
+  },
+  atributos_r010: {
+    sheetName: 'Atributos',
+    headers: ['Facultad/Escuela', 'Ciudad', 'Atributo', 'Peso (%)'],
+    label: 'Atributos de Valor Percibido',
+  },
+  calificaciones_edu: {
+    sheetName: 'Calificaciones',
+    headers: ['Programa', 'Atributo', 'Tipo (propio|competidor)', 'Código SNIES', 'Calificación'],
+    label: 'Calificaciones Edu',
+  },
+  asignaciones_snies: {
+    sheetName: 'Asignaciones SNIES',
+    headers: ['Programa Propio (Nombre + Ciudad)', 'Código SNIES Competidor'],
+    label: 'Asignaciones SNIES',
+  },
+  snies_update: {
+    sheetName: 'SNIES',
+    headers: ['Código SNIES', 'Programa', 'Universidad', 'Ciudad', 'Nivel', 'Modalidad', 'Precio Actual'],
+    label: 'Actualizar Base SNIES',
+  },
 }
 
-export const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024   // 10 MB estricto (< 10 MB)
+export const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024            // 10 MB — plantillas operativas (UploadPlantillaModal, matrices)
+export const MAX_SCRAPER_FILE_SIZE_BYTES = 30 * 1024 * 1024    // 30 MB — archivos wide single-table del scraper (decisión #7 — 2026-05-04)

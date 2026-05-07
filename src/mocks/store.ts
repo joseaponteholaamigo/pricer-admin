@@ -22,6 +22,27 @@ import {
   SEED_CATEGORIAS,
   SEED_SKUS_COMPETENCIA,
   SEED_VINCULACIONES,
+  // educacion
+  SEED_PROGRAMAS_ACADEMICOS,
+  SEED_SNIES_GLOBAL,
+  SEED_ASIGNACIONES_SNIES,
+  SEED_FACULTADES_ESCUELAS,
+  SEED_NIVELES_EDUCATIVOS,
+  SEED_CIUDADES_EDU,
+  SEED_ATRIBUTOS_R010,
+  SEED_ATRIBUTOS_R010_PAR,
+  SEED_CALIFICACIONES_EDU,
+  SEED_IMPORTACIONES_EDU,
+  SEED_MATRIZ_EAFIT,
+  type MockMatrizPreferencia,
+  type MockProgramaAcademico,
+  type MockSnies,
+  type MockAsignacionSnies,
+  type MockFacultadEscuela,
+  type MockNivelEducativo,
+  type MockCiudadEdu,
+  type MockCalificacionEdu,
+  type MockAtributosR010Par,
   // tenant-002
   SEED_SKUS_T002,
   SEED_SKUS_COMP_T002,
@@ -269,4 +290,63 @@ export const store = {
   } as Record<string, Record<string, MockVinculacion[]>>,
 
   _idCounter: 100,
+
+  // ─── Vertical Educación ─────────────────────────────────────────────────────
+
+  /** Programas propios por tenant */
+  programasAcademicos: {
+    'tenant-edu-001': structuredClone(SEED_PROGRAMAS_ACADEMICOS),
+  } as Record<string, MockProgramaAcademico[]>,
+
+  /** Base global SNIES (sin RLS) */
+  sniesGlobal: structuredClone(SEED_SNIES_GLOBAL) as MockSnies[],
+
+  /** Asignaciones programa → SNIES por tenant */
+  asignacionesSnies: {
+    'tenant-edu-001': structuredClone(SEED_ASIGNACIONES_SNIES),
+  } as Record<string, MockAsignacionSnies[]>,
+
+  /** Facultades/Escuelas por tenant (P1 2026-05-05) */
+  facultadesEscuelas: {
+    'tenant-edu-001': structuredClone(SEED_FACULTADES_ESCUELAS),
+  } as Record<string, MockFacultadEscuela[]>,
+
+  /** Niveles Educativos por tenant (2026-05-06 reemplaza P2 global) */
+  nivelesEducativos: {
+    'tenant-edu-001': structuredClone(SEED_NIVELES_EDUCATIVOS),
+  } as Record<string, MockNivelEducativo[]>,
+
+  /** Ciudades por tenant (2026-05-05) */
+  ciudadesEdu: {
+    'tenant-edu-001': structuredClone(SEED_CIUDADES_EDU),
+  } as Record<string, MockCiudadEdu[]>,
+
+  /** Atributos R-010 por tenant (misma estructura que r002 FMCG — solo FMCG) */
+  r010Atributos: {
+    'tenant-edu-001': structuredClone(SEED_ATRIBUTOS_R010),
+  } as Record<string, MockCategoriaAtributos[]>,
+
+  /**
+   * Atributos R-010 por par (Facultad/Escuela × Ciudad) — educación P3 2026-05-05.
+   * Key: `${tenantId}` → `Record<\`${facultad}|${ciudad}\`, MockAtributoR010Par[]>`
+   */
+  r010AtributosPar: {
+    'tenant-edu-001': structuredClone(SEED_ATRIBUTOS_R010_PAR),
+  } as Record<string, MockAtributosR010Par>,
+
+  /** Matrices de Preferencia por tenant (P12 2026-05-05 — lock 4-tupla: tenant+facultad+nivel+ciudad) */
+  matricesPreferencia: [structuredClone(SEED_MATRIZ_EAFIT)] as MockMatrizPreferencia[],
+
+  /** Calificaciones R-010 por tenant */
+  r010Calificaciones: {
+    'tenant-edu-001': structuredClone(SEED_CALIFICACIONES_EDU),
+  } as Record<string, MockCalificacionEdu[]>,
+
+  /** Importaciones educación (reutiliza importacionesV2 con tenantId edu) */
+  importacionesEdu: {
+    'tenant-edu-001': structuredClone(SEED_IMPORTACIONES_EDU),
+  } as Record<string, typeof SEED_IMPORTACIONES_EDU>,
+
+  /** Lock global para upload SNIES (no por tenant) */
+  sniesUpdateLocked: false,
 }

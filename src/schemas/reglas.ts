@@ -142,6 +142,73 @@ export function makeCategoriaSchema(opts: { existingNombres: string[] }) {
 
 export type CategoriaSchema = ReturnType<typeof makeCategoriaSchema>
 
+// ─── Schema de Programa Académico (Educación) ────────────────────────────────
+
+/**
+ * Construye el schema para ProgramaModal (vertical Educación, P3 2026-05-05).
+ * Salida: ProgramaFormValues (strings) — el consumidor parsea los numéricos.
+ *
+ * Validaciones:
+ *  - Código Programa (E-10): requerido, único por tenant contra existingCodigos.
+ *  - Nombre, Facultad/Escuela, Nivel Educativo, Ciudad: requeridos.
+ *  - Precio Actual: entero ≥ 0.
+ */
+export function makeProgramaSchema(opts: { existingCodigos: string[] }) {
+  const { existingCodigos } = opts
+
+  return z
+    .object({
+      codigo: z.string(),
+      nombre: z.string(),
+      facultadEscuela: z.string(),
+      nivelEducativo: z.string(),
+      ciudad: z.string(),
+      precioActual: z.string(),
+    })
+    .superRefine((data, ctx) => {
+      // ── Código Programa ──────────────────────────────────────────────────
+      const codigo = data.codigo.trim()
+      if (!codigo) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['codigo'], message: 'El Código Programa es requerido' })
+      } else if (existingCodigos.includes(codigo)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['codigo'], message: 'Ya existe un programa con este código' })
+      }
+
+      // ── Nombre ──────────────────────────────────────────────────────────
+      const nombre = data.nombre.trim()
+      if (!nombre) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['nombre'], message: 'El nombre es requerido' })
+      } else if (nombre.length < 3) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['nombre'], message: 'Mínimo 3 caracteres' })
+      } else if (nombre.length > 120) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['nombre'], message: 'Máximo 120 caracteres' })
+      }
+
+      // ── Facultad/Escuela ────────────────────────────────────────────────
+      if (!data.facultadEscuela) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['facultadEscuela'], message: 'La Facultad/Escuela es requerida' })
+      }
+
+      // ── Nivel Educativo ─────────────────────────────────────────────────
+      if (!data.nivelEducativo) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['nivelEducativo'], message: 'El Nivel Educativo es requerido' })
+      }
+
+      // ── Ciudad ──────────────────────────────────────────────────────────
+      if (!data.ciudad) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['ciudad'], message: 'La Ciudad es requerida' })
+      }
+
+      // ── Precio Actual ───────────────────────────────────────────────────
+      const precio = parseInt(data.precioActual, 10)
+      if (!data.precioActual || isNaN(precio) || precio < 0) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['precioActual'], message: 'Debe ser un entero ≥ 0' })
+      }
+    })
+}
+
+export type ProgramaSchema = ReturnType<typeof makeProgramaSchema>
+
 // ─── Schema de Canal / Margen ─────────────────────────────────────────────────
 
 /**

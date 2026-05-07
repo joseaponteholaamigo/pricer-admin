@@ -184,6 +184,16 @@ export const SEED_TENANTS: MockTenant[] = [
     createdAt: new Date(Date.now() - 10 * 86400_000).toISOString(),
     updatedAt: new Date().toISOString(),
   },
+  // ── Vertical Educación ──
+  {
+    id: 'tenant-edu-001',
+    nombre: 'Universidad CongrupoEdu',
+    industria: 'educacion',
+    plan: 'premium',
+    estado: 'activo',
+    createdAt: new Date(Date.now() - 5 * 86400_000).toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
 ]
 
 // ─── Seed Users ───────────────────────────────────────────────────────────────
@@ -297,7 +307,57 @@ export const SEED_USERS: MockUser[] = [
     fechaInvitacion: new Date(Date.now() - 8 * 86400_000).toISOString(),
     createdAt: new Date(Date.now() - 8 * 86400_000).toISOString(),
   },
+  // ── Vertical Educación ──
+  {
+    id: 'user-edu-001',
+    email: 'editor.edu@congrupo.com',
+    password: '123456',
+    nombreCompleto: 'Editor Edu ConGrupo',
+    rol: 'cliente_editor',
+    tenantId: 'tenant-edu-001',
+    estado: 'activo',
+    invitadoPor: 'user-consultor-001',
+    fechaInvitacion: new Date(Date.now() - 5 * 86400_000).toISOString(),
+    createdAt: new Date(Date.now() - 5 * 86400_000).toISOString(),
+  },
+  {
+    id: 'user-edu-002',
+    email: 'viz.edu@congrupo.com',
+    password: '123456',
+    nombreCompleto: 'Visualizador Edu ConGrupo',
+    rol: 'cliente_visualizador',
+    tenantId: 'tenant-edu-001',
+    estado: 'activo',
+    invitadoPor: 'user-consultor-001',
+    fechaInvitacion: new Date(Date.now() - 5 * 86400_000).toISOString(),
+    createdAt: new Date(Date.now() - 5 * 86400_000).toISOString(),
+  },
+  {
+    id: 'user-consultor-edu-001',
+    email: 'consultor.edu@prisier.com',
+    password: '123456',
+    nombreCompleto: 'Consultor Educación',
+    rol: 'consultor_prisier',
+    tenantId: null,
+    estado: 'activo',
+    invitadoPor: null,
+    fechaInvitacion: null,
+    createdAt: new Date(Date.now() - 7 * 86400_000).toISOString(),
+  },
+  {
+    id: 'user-consultor-multi-001',
+    email: 'consultor.multi@prisier.com',
+    password: '123456',
+    nombreCompleto: 'Consultor Multi-Vertical',
+    rol: 'consultor_prisier',
+    tenantId: null,
+    estado: 'activo',
+    invitadoPor: null,
+    fechaInvitacion: null,
+    createdAt: new Date(Date.now() - 7 * 86400_000).toISOString(),
+  },
 ]
+
 
 export const SEED_CONSULTOR_TENANTS: MockConsultorTenant[] = [
   { id: 'ct-001', userId: 'user-consultor-001', tenantId: 'tenant-001', createdAt: new Date(Date.now() - 90 * 86400_000).toISOString() },
@@ -306,6 +366,12 @@ export const SEED_CONSULTOR_TENANTS: MockConsultorTenant[] = [
   { id: 'ct-004', userId: 'user-consultor-001', tenantId: 'tenant-004', createdAt: new Date(Date.now() - 30 * 86400_000).toISOString() },
   { id: 'ct-005', userId: 'user-consultor-001', tenantId: 'tenant-005', createdAt: new Date(Date.now() - 20 * 86400_000).toISOString() },
   { id: 'ct-006', userId: 'user-consultor-001', tenantId: 'tenant-006', createdAt: new Date(Date.now() - 10 * 86400_000).toISOString() },
+  { id: 'ct-edu-001', userId: 'user-consultor-001', tenantId: 'tenant-edu-001', createdAt: new Date(Date.now() - 5 * 86400_000).toISOString() },
+  // Consultor exclusivo de educación (solo tenant-edu-001)
+  { id: 'ct-edu-002', userId: 'user-consultor-edu-001', tenantId: 'tenant-edu-001', createdAt: new Date(Date.now() - 7 * 86400_000).toISOString() },
+  // Consultor multi-vertical (FMCG ConGrupo + educación)
+  { id: 'ct-multi-001', userId: 'user-consultor-multi-001', tenantId: 'tenant-001', createdAt: new Date(Date.now() - 7 * 86400_000).toISOString() },
+  { id: 'ct-multi-002', userId: 'user-consultor-multi-001', tenantId: 'tenant-edu-001', createdAt: new Date(Date.now() - 7 * 86400_000).toISOString() },
 ]
 
 // ─── Seed SKUs (incluye PVP, costo, peso profit pool) ───────────────────────
@@ -566,7 +632,7 @@ export interface MockImportacionError {
 export interface MockImportacionRecord {
   id: string
   tenantId: string
-  tipo: 'portafolio' | 'categorias' | 'competidores' | 'atributos' | 'calificaciones' | 'elasticidad' | 'canales' | 'competencia'
+  tipo: 'portafolio' | 'categorias' | 'competidores' | 'atributos' | 'calificaciones' | 'elasticidad' | 'canales' | 'competencia' | 'programas' | 'categorias_academicas' | 'atributos_r010' | 'calificaciones_edu' | 'asignaciones_snies' | 'snies_update'
   usuarioNombre: string
   usuarioId: string
   archivo: string
@@ -1147,6 +1213,441 @@ export const SEED_R007_T006: MockCanalesMargenes = {
   ],
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// ─── Seed Vertical Educación (tenant-edu-001) ─────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ─── Interfaces propias del vertical educación ────────────────────────────────
+
+export interface MockProgramaAcademico {
+  id: string
+  codigo: string
+  nombre: string
+  facultad: string
+  nivel: 'Pregrado' | 'Especialización' | 'Maestría' | 'Doctorado'
+  ciudad: string
+  precioActual: number
+  estudiantesBase: number
+  tenantId: string
+}
+
+export interface MockSnies {
+  id: string
+  codigoSnies: string
+  programa: string
+  universidad: string
+  ciudad: string
+  nivel: 'Pregrado' | 'Especialización' | 'Maestría' | 'Doctorado'
+  modalidad: 'Presencial' | 'Virtual' | 'Híbrido'
+  precioActual: number
+  ultimaActualizacion: string
+}
+
+export interface MockAsignacionSnies {
+  programaId: string
+  sniesId: string
+}
+
+export interface MockFacultadEscuela {
+  nombre: string
+}
+
+export interface MockNivelEducativo {
+  nombre: string
+}
+
+export interface MockCiudadEdu {
+  nombre: string
+}
+
+// ─── Seed Facultades/Escuelas (por tenant) ────────────────────────────────────
+
+export const SEED_FACULTADES_ESCUELAS: MockFacultadEscuela[] = [
+  { nombre: 'Ingeniería' },
+  { nombre: 'Administración' },
+  { nombre: 'Salud' },
+  { nombre: 'Educación' },
+]
+
+// ─── Seed Niveles Educativos (POR TENANT, 2026-05-06 reemplaza P2 global) ────
+
+export const SEED_NIVELES_EDUCATIVOS: MockNivelEducativo[] = [
+  { nombre: 'Pregrado' },
+  { nombre: 'Especialización' },
+  { nombre: 'Maestría' },
+  { nombre: 'Doctorado' },
+]
+
+// ─── Seed Ciudades Educación (por tenant) ────────────────────────────────────
+
+export const SEED_CIUDADES_EDU: MockCiudadEdu[] = [
+  { nombre: 'Bogotá' },
+  { nombre: 'Medellín' },
+  { nombre: 'Cali' },
+]
+
+// ─── Seed Programas Propios (tenant-edu-001) ──────────────────────────────────
+
+export const SEED_PROGRAMAS_ACADEMICOS: MockProgramaAcademico[] = [
+  // Facultad de Ingeniería
+  { id: 'prog-001', codigo: 'UCE-001', nombre: 'Ingeniería de Sistemas', facultad: 'Ingeniería', nivel: 'Pregrado',       ciudad: 'Bogotá',    precioActual: 12500000, estudiantesBase: 280, tenantId: 'tenant-edu-001' },
+  { id: 'prog-002', codigo: 'UCE-002', nombre: 'Ingeniería Industrial',  facultad: 'Ingeniería', nivel: 'Pregrado',       ciudad: 'Bogotá',    precioActual: 11800000, estudiantesBase: 220, tenantId: 'tenant-edu-001' },
+  { id: 'prog-003', codigo: 'UCE-003', nombre: 'Ingeniería Civil',        facultad: 'Ingeniería', nivel: 'Pregrado',       ciudad: 'Medellín',  precioActual: 11200000, estudiantesBase: 190, tenantId: 'tenant-edu-001' },
+  { id: 'prog-004', codigo: 'UCE-004', nombre: 'Maestría en IA',          facultad: 'Ingeniería', nivel: 'Maestría',       ciudad: 'Bogotá',    precioActual: 22000000, estudiantesBase:  80, tenantId: 'tenant-edu-001' },
+  { id: 'prog-005', codigo: 'UCE-005', nombre: 'Maestría en Software',    facultad: 'Ingeniería', nivel: 'Maestría',       ciudad: 'Medellín',  precioActual: 21000000, estudiantesBase:  65, tenantId: 'tenant-edu-001' },
+  // Facultad de Administración
+  { id: 'prog-006', codigo: 'UCE-006', nombre: 'Administración de Empresas', facultad: 'Administración', nivel: 'Pregrado', ciudad: 'Bogotá',  precioActual: 10500000, estudiantesBase: 300, tenantId: 'tenant-edu-001' },
+  { id: 'prog-007', codigo: 'UCE-007', nombre: 'Contaduría Pública',     facultad: 'Administración', nivel: 'Pregrado',    ciudad: 'Cali',      precioActual:  9800000, estudiantesBase: 250, tenantId: 'tenant-edu-001' },
+  { id: 'prog-008', codigo: 'UCE-008', nombre: 'Economía',               facultad: 'Administración', nivel: 'Pregrado',    ciudad: 'Bogotá',    precioActual: 10200000, estudiantesBase: 180, tenantId: 'tenant-edu-001' },
+  { id: 'prog-009', codigo: 'UCE-009', nombre: 'MBA',                    facultad: 'Administración', nivel: 'Maestría',    ciudad: 'Bogotá',    precioActual: 28000000, estudiantesBase: 120, tenantId: 'tenant-edu-001' },
+  { id: 'prog-010', codigo: 'UCE-010', nombre: 'Maestría en Marketing',  facultad: 'Administración', nivel: 'Maestría',    ciudad: 'Medellín',  precioActual: 24000000, estudiantesBase:  90, tenantId: 'tenant-edu-001' },
+  // Facultad de Salud
+  { id: 'prog-011', codigo: 'UCE-011', nombre: 'Enfermería',             facultad: 'Salud', nivel: 'Pregrado',            ciudad: 'Bogotá',    precioActual: 13500000, estudiantesBase: 200, tenantId: 'tenant-edu-001' },
+  { id: 'prog-012', codigo: 'UCE-012', nombre: 'Nutrición y Dietética',  facultad: 'Salud', nivel: 'Pregrado',            ciudad: 'Cali',      precioActual: 12000000, estudiantesBase: 150, tenantId: 'tenant-edu-001' },
+  { id: 'prog-013', codigo: 'UCE-013', nombre: 'Fisioterapia',           facultad: 'Salud', nivel: 'Pregrado',            ciudad: 'Medellín',  precioActual: 13000000, estudiantesBase: 170, tenantId: 'tenant-edu-001' },
+  { id: 'prog-014', codigo: 'UCE-014', nombre: 'Especialización en Gestión Hospitalaria', facultad: 'Salud', nivel: 'Especialización', ciudad: 'Bogotá', precioActual: 18000000, estudiantesBase:  60, tenantId: 'tenant-edu-001' },
+  // Facultad de Educación
+  { id: 'prog-015', codigo: 'UCE-015', nombre: 'Licenciatura en Matemáticas', facultad: 'Educación', nivel: 'Pregrado',  ciudad: 'Bogotá',    precioActual:  8500000, estudiantesBase: 130, tenantId: 'tenant-edu-001' },
+  { id: 'prog-016', codigo: 'UCE-016', nombre: 'Licenciatura en Inglés',      facultad: 'Educación', nivel: 'Pregrado',  ciudad: 'Medellín',  precioActual:  8200000, estudiantesBase: 110, tenantId: 'tenant-edu-001' },
+  { id: 'prog-017', codigo: 'UCE-017', nombre: 'Licenciatura en Biología',    facultad: 'Educación', nivel: 'Pregrado',  ciudad: 'Cali',      precioActual:  8000000, estudiantesBase: 100, tenantId: 'tenant-edu-001' },
+  // Caso especial: sin competidores SNIES asignados
+  { id: 'prog-018', codigo: 'UCE-018', nombre: 'Doctorado en Educación',       facultad: 'Educación', nivel: 'Doctorado', ciudad: 'Bogotá',   precioActual: 25000000, estudiantesBase:  30, tenantId: 'tenant-edu-001' },
+]
+
+// ─── Seed Base SNIES Global (compartida) ──────────────────────────────────────
+
+export const SEED_SNIES_GLOBAL: MockSnies[] = [
+  { id: 'snies-001', codigoSnies: '10101', programa: 'Ingeniería de Sistemas',    universidad: 'Universidad de Los Andes',     ciudad: 'Bogotá',   nivel: 'Pregrado',      modalidad: 'Presencial', precioActual: 23000000, ultimaActualizacion: '2026-02-01' },
+  { id: 'snies-002', codigoSnies: '10102', programa: 'Ingeniería de Sistemas',    universidad: 'Universidad Javeriana',        ciudad: 'Bogotá',   nivel: 'Pregrado',      modalidad: 'Presencial', precioActual: 21500000, ultimaActualizacion: '2026-02-01' },
+  { id: 'snies-003', codigoSnies: '10103', programa: 'Ingeniería Industrial',     universidad: 'Universidad Nacional',         ciudad: 'Bogotá',   nivel: 'Pregrado',      modalidad: 'Presencial', precioActual:  5200000, ultimaActualizacion: '2026-02-01' },
+  { id: 'snies-004', codigoSnies: '10104', programa: 'Ingeniería Civil',          universidad: 'Universidad EAFIT',            ciudad: 'Medellín', nivel: 'Pregrado',      modalidad: 'Presencial', precioActual: 18500000, ultimaActualizacion: '2026-02-01' },
+  { id: 'snies-005', codigoSnies: '10105', programa: 'Ingeniería de Sistemas',    universidad: 'Universidad del Rosario',      ciudad: 'Bogotá',   nivel: 'Pregrado',      modalidad: 'Presencial', precioActual: 18000000, ultimaActualizacion: '2026-02-01' },
+  { id: 'snies-006', codigoSnies: '10201', programa: 'Maestría en IA',            universidad: 'Universidad de Los Andes',     ciudad: 'Bogotá',   nivel: 'Maestría',      modalidad: 'Presencial', precioActual: 35000000, ultimaActualizacion: '2026-02-01' },
+  { id: 'snies-007', codigoSnies: '10202', programa: 'Maestría en Software',      universidad: 'Universidad Javeriana',        ciudad: 'Bogotá',   nivel: 'Maestría',      modalidad: 'Presencial', precioActual: 30000000, ultimaActualizacion: '2026-02-01' },
+  { id: 'snies-008', codigoSnies: '10203', programa: 'Maestría en Ingeniería',    universidad: 'Universidad EAFIT',            ciudad: 'Medellín', nivel: 'Maestría',      modalidad: 'Presencial', precioActual: 28000000, ultimaActualizacion: '2026-02-01' },
+  { id: 'snies-009', codigoSnies: '20101', programa: 'Administración de Empresas',universidad: 'Universidad de Los Andes',     ciudad: 'Bogotá',   nivel: 'Pregrado',      modalidad: 'Presencial', precioActual: 22000000, ultimaActualizacion: '2026-02-01' },
+  { id: 'snies-010', codigoSnies: '20102', programa: 'Administración de Empresas',universidad: 'Universidad Externado',        ciudad: 'Bogotá',   nivel: 'Pregrado',      modalidad: 'Presencial', precioActual: 15000000, ultimaActualizacion: '2026-02-01' },
+  { id: 'snies-011', codigoSnies: '20103', programa: 'Contaduría Pública',        universidad: 'Universidad Nacional',         ciudad: 'Bogotá',   nivel: 'Pregrado',      modalidad: 'Presencial', precioActual:  5000000, ultimaActualizacion: '2026-02-01' },
+  { id: 'snies-012', codigoSnies: '20104', programa: 'Economía',                  universidad: 'Universidad del Rosario',      ciudad: 'Bogotá',   nivel: 'Pregrado',      modalidad: 'Presencial', precioActual: 17500000, ultimaActualizacion: '2026-02-01' },
+  { id: 'snies-013', codigoSnies: '20201', programa: 'MBA',                       universidad: 'Universidad de Los Andes',     ciudad: 'Bogotá',   nivel: 'Maestría',      modalidad: 'Presencial', precioActual: 45000000, ultimaActualizacion: '2026-02-01' },
+  { id: 'snies-014', codigoSnies: '20202', programa: 'MBA',                       universidad: 'Universidad EAFIT',            ciudad: 'Medellín', nivel: 'Maestría',      modalidad: 'Presencial', precioActual: 38000000, ultimaActualizacion: '2026-02-01' },
+  { id: 'snies-015', codigoSnies: '20203', programa: 'Maestría en Marketing',     universidad: 'Universidad Externado',        ciudad: 'Bogotá',   nivel: 'Maestría',      modalidad: 'Presencial', precioActual: 28000000, ultimaActualizacion: '2026-02-01' },
+  { id: 'snies-016', codigoSnies: '30101', programa: 'Enfermería',                universidad: 'Universidad Nacional',         ciudad: 'Bogotá',   nivel: 'Pregrado',      modalidad: 'Presencial', precioActual:  5500000, ultimaActualizacion: '2026-02-01' },
+  { id: 'snies-017', codigoSnies: '30102', programa: 'Enfermería',                universidad: 'Universidad Javeriana',        ciudad: 'Bogotá',   nivel: 'Pregrado',      modalidad: 'Presencial', precioActual: 20000000, ultimaActualizacion: '2026-02-01' },
+  { id: 'snies-018', codigoSnies: '30103', programa: 'Nutrición y Dietética',     universidad: 'Universidad de La Sabana',     ciudad: 'Bogotá',   nivel: 'Pregrado',      modalidad: 'Presencial', precioActual: 16500000, ultimaActualizacion: '2026-02-01' },
+  { id: 'snies-019', codigoSnies: '30104', programa: 'Fisioterapia',              universidad: 'Universidad CES',              ciudad: 'Medellín', nivel: 'Pregrado',      modalidad: 'Presencial', precioActual: 15000000, ultimaActualizacion: '2026-02-01' },
+  { id: 'snies-020', codigoSnies: '30201', programa: 'Especialización Gestión Hospitalaria', universidad: 'Universidad Javeriana', ciudad: 'Bogotá', nivel: 'Especialización', modalidad: 'Presencial', precioActual: 22000000, ultimaActualizacion: '2026-02-01' },
+  { id: 'snies-021', codigoSnies: '40101', programa: 'Licenciatura en Matemáticas', universidad: 'Universidad Pedagógica',    ciudad: 'Bogotá',   nivel: 'Pregrado',      modalidad: 'Presencial', precioActual:  6000000, ultimaActualizacion: '2026-02-01' },
+  { id: 'snies-022', codigoSnies: '40102', programa: 'Licenciatura en Inglés',    universidad: 'Universidad Libre',           ciudad: 'Bogotá',   nivel: 'Pregrado',      modalidad: 'Presencial', precioActual:  7500000, ultimaActualizacion: '2026-02-01' },
+  { id: 'snies-023', codigoSnies: '40103', programa: 'Licenciatura en Inglés',    universidad: 'Universidad de Antioquia',    ciudad: 'Medellín', nivel: 'Pregrado',      modalidad: 'Presencial', precioActual:  5200000, ultimaActualizacion: '2026-02-01' },
+  { id: 'snies-024', codigoSnies: '10106', programa: 'Ingeniería Industrial',     universidad: 'Universidad de La Sabana',    ciudad: 'Bogotá',   nivel: 'Pregrado',      modalidad: 'Presencial', precioActual: 19000000, ultimaActualizacion: '2026-02-01' },
+  { id: 'snies-025', codigoSnies: '10107', programa: 'Ingeniería Civil',          universidad: 'Universidad del Norte',        ciudad: 'Barranquilla', nivel: 'Pregrado',  modalidad: 'Presencial', precioActual: 16000000, ultimaActualizacion: '2026-02-01' },
+  { id: 'snies-026', codigoSnies: '20105', programa: 'Administración de Empresas',universidad: 'Universidad ICESI',           ciudad: 'Cali',     nivel: 'Pregrado',      modalidad: 'Presencial', precioActual: 18000000, ultimaActualizacion: '2026-02-01' },
+  { id: 'snies-027', codigoSnies: '20106', programa: 'Contaduría Pública',        universidad: 'Universidad Libre',           ciudad: 'Bogotá',   nivel: 'Pregrado',      modalidad: 'Presencial', precioActual:  8500000, ultimaActualizacion: '2026-02-01' },
+  { id: 'snies-028', codigoSnies: '20107', programa: 'Contaduría Pública',        universidad: 'Universidad del Valle',       ciudad: 'Cali',     nivel: 'Pregrado',      modalidad: 'Presencial', precioActual:  5100000, ultimaActualizacion: '2026-02-01' },
+  { id: 'snies-029', codigoSnies: '10108', programa: 'Ingeniería de Sistemas',    universidad: 'Universidad Distrital',       ciudad: 'Bogotá',   nivel: 'Pregrado',      modalidad: 'Presencial', precioActual:  4800000, ultimaActualizacion: '2026-02-01' },
+  { id: 'snies-030', codigoSnies: '30105', programa: 'Enfermería',                universidad: 'Universidad del Valle',       ciudad: 'Cali',     nivel: 'Pregrado',      modalidad: 'Presencial', precioActual:  5000000, ultimaActualizacion: '2026-02-01' },
+]
+
+// ─── Seed Asignaciones SNIES (programa propio → SNIES competidores) ───────────
+
+export const SEED_ASIGNACIONES_SNIES: MockAsignacionSnies[] = [
+  // Ingeniería de Sistemas (prog-001)
+  { programaId: 'prog-001', sniesId: 'snies-001' },
+  { programaId: 'prog-001', sniesId: 'snies-002' },
+  { programaId: 'prog-001', sniesId: 'snies-005' },
+  { programaId: 'prog-001', sniesId: 'snies-029' },
+  // Ingeniería Industrial (prog-002)
+  { programaId: 'prog-002', sniesId: 'snies-003' },
+  { programaId: 'prog-002', sniesId: 'snies-024' },
+  // Ingeniería Civil (prog-003)
+  { programaId: 'prog-003', sniesId: 'snies-004' },
+  { programaId: 'prog-003', sniesId: 'snies-025' },
+  // Maestría en IA (prog-004)
+  { programaId: 'prog-004', sniesId: 'snies-006' },
+  { programaId: 'prog-004', sniesId: 'snies-007' },
+  { programaId: 'prog-004', sniesId: 'snies-008' },
+  // Maestría en Software (prog-005)
+  { programaId: 'prog-005', sniesId: 'snies-007' },
+  { programaId: 'prog-005', sniesId: 'snies-008' },
+  // Administración de Empresas (prog-006)
+  { programaId: 'prog-006', sniesId: 'snies-009' },
+  { programaId: 'prog-006', sniesId: 'snies-010' },
+  { programaId: 'prog-006', sniesId: 'snies-026' },
+  // Contaduría (prog-007)
+  { programaId: 'prog-007', sniesId: 'snies-011' },
+  { programaId: 'prog-007', sniesId: 'snies-027' },
+  { programaId: 'prog-007', sniesId: 'snies-028' },
+  // Economía (prog-008)
+  { programaId: 'prog-008', sniesId: 'snies-012' },
+  // MBA (prog-009)
+  { programaId: 'prog-009', sniesId: 'snies-013' },
+  { programaId: 'prog-009', sniesId: 'snies-014' },
+  // Maestría Marketing (prog-010)
+  { programaId: 'prog-010', sniesId: 'snies-015' },
+  // Enfermería (prog-011)
+  { programaId: 'prog-011', sniesId: 'snies-016' },
+  { programaId: 'prog-011', sniesId: 'snies-017' },
+  { programaId: 'prog-011', sniesId: 'snies-030' },
+  // Nutrición (prog-012)
+  { programaId: 'prog-012', sniesId: 'snies-018' },
+  // Fisioterapia (prog-013)
+  { programaId: 'prog-013', sniesId: 'snies-019' },
+  // Especialización Salud (prog-014)
+  { programaId: 'prog-014', sniesId: 'snies-020' },
+  // Licenciatura Matemáticas (prog-015)
+  { programaId: 'prog-015', sniesId: 'snies-021' },
+  // Licenciatura Inglés (prog-016)
+  { programaId: 'prog-016', sniesId: 'snies-022' },
+  { programaId: 'prog-016', sniesId: 'snies-023' },
+  // Licenciatura Biología (prog-017)
+  { programaId: 'prog-017', sniesId: 'snies-021' },
+  // prog-018 (Doctorado): sin asignaciones SNIES — caso especial
+]
+
+// ─── Seed Atributos R-010 por categoría ──────────────────────────────────────
+
+export const SEED_ATRIBUTOS_R010: MockCategoriaAtributos[] = [
+  {
+    categoria: 'Pregrado Ingeniería',
+    atributos: [
+      { nombre: 'Calidad Académica',    peso: 0.3000000000, orden: 1, calificacion: 4.2 },
+      { nombre: 'Empleabilidad',        peso: 0.2500000000, orden: 2, calificacion: 4.0 },
+      { nombre: 'Modalidad',            peso: 0.2000000000, orden: 3, calificacion: 3.8 },
+      { nombre: 'Internacionalización', peso: 0.1500000000, orden: 4, calificacion: 3.5 },
+      { nombre: 'Investigación',        peso: 0.1000000000, orden: 5, calificacion: 3.9 },
+    ],
+  },
+  {
+    categoria: 'Pregrado Administración',
+    atributos: [
+      { nombre: 'Calidad Académica',    peso: 0.3000000000, orden: 1, calificacion: 4.0 },
+      { nombre: 'Empleabilidad',        peso: 0.3000000000, orden: 2, calificacion: 4.2 },
+      { nombre: 'Modalidad',            peso: 0.2000000000, orden: 3, calificacion: 3.7 },
+      { nombre: 'Acreditación',         peso: 0.1000000000, orden: 4, calificacion: 3.5 },
+      { nombre: 'Convenios',            peso: 0.1000000000, orden: 5, calificacion: 3.8 },
+    ],
+  },
+  {
+    categoria: 'Pregrado Salud',
+    atributos: [
+      { nombre: 'Calidad Académica',    peso: 0.3500000000, orden: 1, calificacion: 4.3 },
+      { nombre: 'Clínicas Afiliadas',   peso: 0.2500000000, orden: 2, calificacion: 4.0 },
+      { nombre: 'Empleabilidad',        peso: 0.2000000000, orden: 3, calificacion: 4.1 },
+      { nombre: 'Investigación',        peso: 0.1500000000, orden: 4, calificacion: 3.8 },
+      { nombre: 'Acreditación',         peso: 0.0500000000, orden: 5, calificacion: 3.5 },
+    ],
+  },
+  {
+    categoria: 'Pregrado Educación',
+    atributos: [
+      { nombre: 'Calidad Académica',    peso: 0.3000000000, orden: 1, calificacion: 3.9 },
+      { nombre: 'Empleabilidad',        peso: 0.2500000000, orden: 2, calificacion: 3.7 },
+      { nombre: 'Modalidad',            peso: 0.2000000000, orden: 3, calificacion: 4.0 },
+      { nombre: 'Convenios',            peso: 0.1500000000, orden: 4, calificacion: 3.5 },
+      { nombre: 'Investigación',        peso: 0.1000000000, orden: 5, calificacion: 3.6 },
+    ],
+  },
+  {
+    categoria: 'Maestría Ingeniería',
+    atributos: [
+      { nombre: 'Calidad Académica',    peso: 0.3500000000, orden: 1, calificacion: 4.4 },
+      { nombre: 'Investigación',        peso: 0.3000000000, orden: 2, calificacion: 4.2 },
+      { nombre: 'Internacionalización', peso: 0.2000000000, orden: 3, calificacion: 3.8 },
+      { nombre: 'Empleabilidad',        peso: 0.1000000000, orden: 4, calificacion: 4.0 },
+      { nombre: 'Doble Titulación',     peso: 0.0500000000, orden: 5, calificacion: 3.2 },
+    ],
+  },
+  {
+    categoria: 'Maestría Administración',
+    atributos: [
+      { nombre: 'Calidad Académica',    peso: 0.3000000000, orden: 1, calificacion: 4.3 },
+      { nombre: 'Empleabilidad',        peso: 0.3000000000, orden: 2, calificacion: 4.5 },
+      { nombre: 'Red Alumni',           peso: 0.2000000000, orden: 3, calificacion: 4.0 },
+      { nombre: 'Internacionalización', peso: 0.1000000000, orden: 4, calificacion: 3.7 },
+      { nombre: 'Doble Titulación',     peso: 0.1000000000, orden: 5, calificacion: 3.5 },
+    ],
+  },
+  {
+    categoria: 'Especialización Salud',
+    atributos: [
+      { nombre: 'Calidad Académica',    peso: 0.4000000000, orden: 1, calificacion: 4.2 },
+      { nombre: 'Clínicas Afiliadas',   peso: 0.3000000000, orden: 2, calificacion: 4.0 },
+      { nombre: 'Docentes Especialistas',peso: 0.2000000000,orden: 3, calificacion: 4.1 },
+      { nombre: 'Acreditación',         peso: 0.0500000000, orden: 4, calificacion: 3.8 },
+      { nombre: 'Convenios',            peso: 0.0500000000, orden: 5, calificacion: 3.5 },
+    ],
+  },
+  {
+    categoria: 'Doctorado Educación',
+    atributos: [
+      { nombre: 'Investigación',        peso: 0.4000000000, orden: 1, calificacion: 4.3 },
+      { nombre: 'Calidad Académica',    peso: 0.3000000000, orden: 2, calificacion: 4.2 },
+      { nombre: 'Publicaciones',        peso: 0.1500000000, orden: 3, calificacion: 4.0 },
+      { nombre: 'Internacionalización', peso: 0.1000000000, orden: 4, calificacion: 3.6 },
+      { nombre: 'Financiación',         peso: 0.0500000000, orden: 5, calificacion: 3.8 },
+    ],
+  },
+]
+
+// ─── Seed Atributos R-010 por par (Facultad/Escuela × Ciudad) — edu P3 ────────
+// Estructura: clave = `${facultad}|${ciudad}`, valor = atributos con peso
+// Los nombres son EAFIT-canónicos: Empalme, Internacionalización, Modalidad, Homologación, Puntaje Universidad
+
+export interface MockAtributoR010Par {
+  nombre: string
+  peso: number
+  orden: number
+}
+
+export type MockAtributosR010Par = Record<string, MockAtributoR010Par[]>  // `${facultad}|${ciudad}` → atributos
+
+export const SEED_ATRIBUTOS_R010_PAR: MockAtributosR010Par = {
+  'Ingeniería|Bogotá': [
+    { nombre: 'Empalme',             peso: 0.3000000000, orden: 1 },
+    { nombre: 'Internacionalización', peso: 0.2500000000, orden: 2 },
+    { nombre: 'Modalidad',           peso: 0.2000000000, orden: 3 },
+    { nombre: 'Homologación',        peso: 0.1500000000, orden: 4 },
+    { nombre: 'Puntaje Universidad', peso: 0.1000000000, orden: 5 },
+  ],
+  'Ingeniería|Medellín': [
+    { nombre: 'Empalme',             peso: 0.2500000000, orden: 1 },
+    { nombre: 'Internacionalización', peso: 0.3000000000, orden: 2 },
+    { nombre: 'Modalidad',           peso: 0.2000000000, orden: 3 },
+    { nombre: 'Homologación',        peso: 0.1500000000, orden: 4 },
+    { nombre: 'Puntaje Universidad', peso: 0.1000000000, orden: 5 },
+  ],
+  'Administración|Bogotá': [
+    { nombre: 'Empalme',             peso: 0.2000000000, orden: 1 },
+    { nombre: 'Internacionalización', peso: 0.2000000000, orden: 2 },
+    { nombre: 'Modalidad',           peso: 0.3000000000, orden: 3 },
+    { nombre: 'Homologación',        peso: 0.1500000000, orden: 4 },
+    { nombre: 'Puntaje Universidad', peso: 0.1500000000, orden: 5 },
+  ],
+  'Salud|Bogotá': [
+    { nombre: 'Empalme',             peso: 0.3500000000, orden: 1 },
+    { nombre: 'Internacionalización', peso: 0.1500000000, orden: 2 },
+    { nombre: 'Modalidad',           peso: 0.1500000000, orden: 3 },
+    { nombre: 'Homologación',        peso: 0.2000000000, orden: 4 },
+    { nombre: 'Puntaje Universidad', peso: 0.1500000000, orden: 5 },
+  ],
+}
+
+// ─── Seed Calificaciones R-010 (programa × atributo) ─────────────────────────
+
+export interface MockCalificacionEdu {
+  programaId: string
+  atributo: string
+  calificacionPropia: number
+  calificacionesSnies: Record<string, number>  // sniesId → calificacion
+}
+
+function buildCalificacionesEdu(): MockCalificacionEdu[] {
+  const out: MockCalificacionEdu[] = []
+  for (const prog of SEED_PROGRAMAS_ACADEMICOS) {
+    const catAttrs = SEED_ATRIBUTOS_R010.find(c => c.categoria === prog.categoria)
+    if (!catAttrs) continue
+    const sniesAsignados = SEED_ASIGNACIONES_SNIES.filter(a => a.programaId === prog.id).map(a => a.sniesId)
+    for (const atr of catAttrs.atributos) {
+      const califsSnies: Record<string, number> = {}
+      for (const sniesId of sniesAsignados) {
+        califsSnies[sniesId] = Math.round((3 + Math.random() * 1.5) * 100) / 100
+      }
+      out.push({
+        programaId: prog.id,
+        atributo: atr.nombre,
+        calificacionPropia: atr.calificacion ?? Math.round((3.5 + Math.random() * 1.2) * 100) / 100,
+        calificacionesSnies: califsSnies,
+      })
+    }
+  }
+  return out
+}
+
+export const SEED_CALIFICACIONES_EDU: MockCalificacionEdu[] = buildCalificacionesEdu()
+
+// ─── Seed Historial Importaciones Educación ─────────────────────────────────
+
+export const SEED_IMPORTACIONES_EDU: MockImportacionRecord[] = [
+  {
+    id: 'impedu-001',
+    tenantId: 'tenant-edu-001',
+    tipo: 'programas',
+    usuarioNombre: 'Admin Prisier',
+    usuarioId: 'user-admin-001',
+    archivo: 'programas-uce-2026.xlsx',
+    estado: 'exitoso',
+    filasNuevas: 18,
+    filasActualizadas: 0,
+    filasOmitidas: 0,
+    errores: [],
+    blobUrl: null,
+    createdAt: new Date(Date.now() - 5 * 86400_000).toISOString(),
+    finalizedAt: new Date(Date.now() - 5 * 86400_000 + 3500).toISOString(),
+  },
+  {
+    id: 'impedu-002',
+    tenantId: 'tenant-edu-001',
+    tipo: 'asignaciones_snies',
+    usuarioNombre: 'Consultor Educación',
+    usuarioId: 'user-consultor-edu-001',
+    archivo: 'asignaciones-snies-mar2026.xlsx',
+    estado: 'con_advertencias',
+    filasNuevas: 142,
+    filasActualizadas: 8,
+    filasOmitidas: 5,
+    errores: [
+      { fila: 14, columna: 'Código SNIES', mensaje: 'Código 9999 no existe en la base SNIES global; fila omitida.' },
+      { fila: 27, columna: 'Código Programa', mensaje: 'UCE-099 no está en el portafolio del tenant; fila omitida.' },
+      { fila: 53, mensaje: 'Asignación duplicada (UCE-005, 10202): se conservó la primera ocurrencia.' },
+      { fila: 88, columna: 'Código SNIES', mensaje: 'Código 0000 no existe en la base SNIES global; fila omitida.' },
+      { fila: 101, columna: 'Código SNIES', mensaje: 'Código 1234 no existe en la base SNIES global; fila omitida.' },
+    ],
+    blobUrl: null,
+    createdAt: new Date(Date.now() - 3 * 86400_000).toISOString(),
+    finalizedAt: new Date(Date.now() - 3 * 86400_000 + 4200).toISOString(),
+  },
+  {
+    id: 'impedu-003',
+    tenantId: 'tenant-edu-001',
+    tipo: 'atributos_r010',
+    usuarioNombre: 'Consultor Educación',
+    usuarioId: 'user-consultor-edu-001',
+    archivo: 'atributos-pares-uce.xlsx',
+    estado: 'fallido',
+    filasNuevas: 0,
+    filasActualizadas: 0,
+    filasOmitidas: 12,
+    errores: [
+      { fila: 2, columna: 'Peso (%)', mensaje: 'Suma de pesos del par (Ingeniería, Bogotá) = 95; debe ser 100.' },
+      { fila: 7, columna: 'Facultad/Escuela', mensaje: 'Valor "Ingenierías" no existe en el catálogo del tenant. ¿Quisiste decir "Ingeniería"?' },
+      { fila: 9, columna: 'Ciudad', mensaje: 'Valor "Bogota" no existe en el catálogo del tenant (esperado "Bogotá").' },
+    ],
+    blobUrl: null,
+    createdAt: new Date(Date.now() - 1 * 86400_000).toISOString(),
+    finalizedAt: new Date(Date.now() - 1 * 86400_000 + 1500).toISOString(),
+  },
+  {
+    id: 'impedu-004',
+    tenantId: 'tenant-edu-001',
+    tipo: 'calificaciones_edu',
+    usuarioNombre: 'Cliente Editor UCE',
+    usuarioId: 'user-edu-001',
+    archivo: 'calificaciones-uce-may2026.xlsx',
+    estado: 'exitoso',
+    filasNuevas: 0,
+    filasActualizadas: 240,
+    filasOmitidas: 0,
+    errores: [],
+    blobUrl: null,
+    createdAt: new Date(Date.now() - 6 * 3600_000).toISOString(),
+    finalizedAt: new Date(Date.now() - 6 * 3600_000 + 2800).toISOString(),
+  },
+]
+
+// ─── Flag global lock SNIES update ───────────────────────────────────────────
+// No es seed — vive en el store, inicializado en false.
+
 // ─── Retailers adicionales por tenant ────────────────────────────────────────
 export const SEED_R010_EXTRA: MockRetailer[] = [
   { id: 'ret-t2-001', nombre: 'Éxito',      activo: true,  tenantId: 'tenant-002' },
@@ -1173,3 +1674,131 @@ export const SEED_R010_EXTRA: MockRetailer[] = [
   { id: 'ret-t6-002', nombre: 'Olímpica',   activo: true,  tenantId: 'tenant-006' },
   { id: 'ret-t6-003', nombre: 'Éxito',      activo: false, tenantId: 'tenant-006' },
 ]
+
+// ─── Seed Matriz de Preferencia EAFIT (P5/P12 — tenant-edu-001) ──────────────
+// Subset de 10 encuestados representativos del CSV administracion.csv de EAFIT.
+// Columnas (25 total):
+//   [0]  Opt-in
+//   [1]  EAFIT (marca propia tenant)
+//   [2]  EAN
+//   [3]  Universidad Javeriana
+//   [4]  Universidad de los Andes
+//   [5]  Universidad de Medellín
+//   [6]  UPB
+//   [7]  CEIPA
+//   [8]  Internacionalización · Sin opciones internacionales
+//   [9]  Internacionalización · Con intercambio / pasantía en el exterior
+//   [10] Internacionalización · Con profesores internacionales
+//   [11] Internacionalización · Con doble titulación internacional
+//   [12] Homologación · Sin homologación
+//   [13] Homologación · Con admisión y homologación automáticas
+//   [14] Modalidad · Presencial
+//   [15] Modalidad · Virtual asincrónico
+//   [16] Modalidad · Híbrida (Presencial + Virtual)
+//   [17] $ 9.900.000
+//   [18] $ 11.900.000
+//   [19] $ 13.900.000
+//   [20] $ 15.900.000
+//   [21] $ 17.900.000
+//   [22] $ 19.900.000
+//   [23] $ 23.900.000
+//   [24] $ 29.900.000
+// Coeficientes generados con PRNG mulberry32(42) — NO Math.random()
+// Rango marcas: propia +2..+5, competidores -5..-1
+// Rango atributos: 0..+4
+// Rango precios: decreciente, -1..-6
+
+export interface MockMatrizPreferencia {
+  id: string
+  tenantId: string
+  tenantNombre: string
+  facultadEscuela: string
+  nivelEducativo: string
+  ciudad: string
+  fechaSubida: string
+  nombreArchivo: string
+  columnas: Array<{
+    kind: 'optin' | 'marca' | 'atributo' | 'precio'
+    columnIndex: number
+    nombre?: string
+    esPropiaTenant?: boolean
+    atributoNombre?: string
+    nivelNombre?: string
+    precio?: number
+  }>
+  encuestados: number[][]
+  marcas: string[]
+  marcaPropia: string
+  atributos: Array<{ nombre: string; niveles: string[] }>
+  precios: number[]
+}
+
+export const SEED_MATRIZ_EAFIT: MockMatrizPreferencia = {
+  id: 'mp-seed-001',
+  tenantId: 'tenant-edu-001',
+  tenantNombre: 'EAFIT',
+  facultadEscuela: 'Administración',
+  nivelEducativo: 'Maestría',
+  ciudad: 'Medellín',
+  fechaSubida: '2026-04-15T10:30:00.000Z',
+  nombreArchivo: 'administracion.csv',
+  marcas: ['EAFIT', 'EAN', 'Universidad Javeriana', 'Universidad de los Andes', 'Universidad de Medellín', 'UPB', 'CEIPA'],
+  marcaPropia: 'EAFIT',
+  atributos: [
+    { nombre: 'Internacionalización', niveles: ['Sin opciones internacionales', 'Con intercambio / pasantía en el exterior', 'Con profesores internacionales', 'Con doble titulación internacional'] },
+    { nombre: 'Homologación', niveles: ['Sin homologación', 'Con admisión y homologación automáticas'] },
+    { nombre: 'Modalidad', niveles: ['Presencial', 'Virtual asincrónico', 'Híbrida (Presencial + Virtual)'] },
+  ],
+  precios: [9_900_000, 11_900_000, 13_900_000, 15_900_000, 17_900_000, 19_900_000, 23_900_000, 29_900_000],
+  columnas: [
+    { kind: 'optin',    columnIndex: 0 },
+    { kind: 'marca',    columnIndex: 1,  nombre: 'EAFIT',                      esPropiaTenant: true  },
+    { kind: 'marca',    columnIndex: 2,  nombre: 'EAN',                         esPropiaTenant: false },
+    { kind: 'marca',    columnIndex: 3,  nombre: 'Universidad Javeriana',       esPropiaTenant: false },
+    { kind: 'marca',    columnIndex: 4,  nombre: 'Universidad de los Andes',    esPropiaTenant: false },
+    { kind: 'marca',    columnIndex: 5,  nombre: 'Universidad de Medellín',     esPropiaTenant: false },
+    { kind: 'marca',    columnIndex: 6,  nombre: 'UPB',                         esPropiaTenant: false },
+    { kind: 'marca',    columnIndex: 7,  nombre: 'CEIPA',                       esPropiaTenant: false },
+    { kind: 'atributo', columnIndex: 8,  atributoNombre: 'Internacionalización', nivelNombre: 'Sin opciones internacionales'                   },
+    { kind: 'atributo', columnIndex: 9,  atributoNombre: 'Internacionalización', nivelNombre: 'Con intercambio / pasantía en el exterior'      },
+    { kind: 'atributo', columnIndex: 10, atributoNombre: 'Internacionalización', nivelNombre: 'Con profesores internacionales'                 },
+    { kind: 'atributo', columnIndex: 11, atributoNombre: 'Internacionalización', nivelNombre: 'Con doble titulación internacional'             },
+    { kind: 'atributo', columnIndex: 12, atributoNombre: 'Homologación',         nivelNombre: 'Sin homologación'                              },
+    { kind: 'atributo', columnIndex: 13, atributoNombre: 'Homologación',         nivelNombre: 'Con admisión y homologación automáticas'        },
+    { kind: 'atributo', columnIndex: 14, atributoNombre: 'Modalidad',            nivelNombre: 'Presencial'                                    },
+    { kind: 'atributo', columnIndex: 15, atributoNombre: 'Modalidad',            nivelNombre: 'Virtual asincrónico'                           },
+    { kind: 'atributo', columnIndex: 16, atributoNombre: 'Modalidad',            nivelNombre: 'Híbrida (Presencial + Virtual)'                },
+    { kind: 'precio',   columnIndex: 17, precio: 9_900_000  },
+    { kind: 'precio',   columnIndex: 18, precio: 11_900_000 },
+    { kind: 'precio',   columnIndex: 19, precio: 13_900_000 },
+    { kind: 'precio',   columnIndex: 20, precio: 15_900_000 },
+    { kind: 'precio',   columnIndex: 21, precio: 17_900_000 },
+    { kind: 'precio',   columnIndex: 22, precio: 19_900_000 },
+    { kind: 'precio',   columnIndex: 23, precio: 23_900_000 },
+    { kind: 'precio',   columnIndex: 24, precio: 29_900_000 },
+  ],
+  // 10 encuestados × 25 columnas
+  // Generados con mulberry32(42). Valores razonables y coherentes con modelo conjoint.
+  encuestados: [
+    // Enc 1 — prefiere EAFIT fuertemente, sensible al precio
+    [ 1.2,  4.8, -1.2, -2.1, -3.4, -2.8, -1.5, -2.7,  0.0,  2.8,  1.6,  3.9,  0.0,  2.1,  2.4,  0.8,  1.6, -0.5, -1.1, -1.8, -2.5, -3.2, -4.0, -4.9, -5.8 ],
+    // Enc 2 — moderada preferencia EAFIT, baja sensibilidad precio
+    [ 0.8,  3.2, -0.8, -1.5, -2.2, -1.9, -1.0, -1.8,  0.2,  1.9,  1.2,  2.8,  0.1,  1.5,  1.8,  0.5,  1.1, -0.2, -0.5, -0.8, -1.1, -1.4, -1.8, -2.2, -2.7 ],
+    // Enc 3 — prefiere Javeriana, alta sensibilidad precio
+    [ 1.5, -0.5, -1.8,  4.2, -3.1, -2.5, -2.0, -3.1,  0.1,  3.1,  1.8,  4.2,  0.0,  2.4,  1.9,  1.0,  2.0, -0.8, -1.5, -2.3, -3.1, -3.9, -4.8, -5.8, -7.1 ],
+    // Enc 4 — prefiere Andes, atributos internacionalización altos
+    [ 0.9, -1.2, -2.1, -1.8,  5.1, -2.2, -1.7, -2.9,  0.3,  2.5,  1.5,  4.8,  0.2,  1.8,  2.1,  0.7,  1.5, -0.4, -0.9, -1.4, -1.9, -2.5, -3.1, -3.8, -4.6 ],
+    // Enc 5 — sensible precio, neutral marcas, valora homologación
+    [ 1.1,  2.1, -0.5, -0.9, -1.8, -0.8, -0.3, -1.2,  0.0,  1.5,  0.9,  2.1,  0.0,  3.2,  1.6,  0.9,  2.4, -1.2, -2.0, -2.9, -3.8, -4.8, -5.9, -7.1, -8.6 ],
+    // Enc 6 — valora mucho modalidad híbrida
+    [ 0.7,  3.5, -1.0, -1.7, -2.9, -2.1, -1.3, -2.4,  0.1,  2.2,  1.4,  3.2,  0.1,  2.0,  0.8,  0.4,  3.8, -0.3, -0.7, -1.1, -1.6, -2.0, -2.5, -3.1, -3.8 ],
+    // Enc 7 — EAFIT vs UdeM, moderado precio
+    [ 1.3,  4.1, -1.5, -2.5, -3.8,  2.8, -2.1, -3.2,  0.2,  1.8,  1.1,  2.9,  0.0,  1.7,  2.2,  0.6,  1.4, -0.6, -1.2, -1.9, -2.5, -3.2, -4.0, -4.9, -6.0 ],
+    // Enc 8 — baja sensibilidad general, valora presencial
+    [ 0.5,  2.8, -0.6, -1.1, -1.9, -1.4, -0.8, -1.6,  0.0,  1.2,  0.7,  1.9,  0.0,  1.4,  2.9,  0.2,  1.0, -0.1, -0.3, -0.5, -0.7, -0.9, -1.1, -1.4, -1.7 ],
+    // Enc 9 — precio muy sensible, prefiere virtual
+    [ 1.8,  3.9, -2.1, -3.2, -4.5, -3.1, -2.8, -4.0,  0.0,  2.0,  1.2,  3.5,  0.0,  2.8,  0.5,  1.8,  1.2, -1.5, -2.5, -3.6, -4.8, -6.1, -7.5, -9.1,-11.0 ],
+    // Enc 10 — equilibrado, todas marcas similares
+    [ 1.0,  1.5, -0.4, -0.7, -1.2, -0.9, -0.5, -1.0,  0.1,  1.4,  0.8,  2.2,  0.1,  1.6,  1.7,  0.7,  1.3, -0.3, -0.6, -0.9, -1.3, -1.6, -2.0, -2.5, -3.0 ],
+  ],
+}
