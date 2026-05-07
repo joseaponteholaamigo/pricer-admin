@@ -798,6 +798,7 @@ const TIPO_LABELS: Record<MockImportacionRecord['tipo'], string> = {
   elasticidad: 'Elasticidad',
   canales: 'Canales',
   competencia: 'Competencia (SKUs)',
+  categorias_academicas: 'Categorías Académicas (deprecado)',
   // Educación
   programas: 'Programas',
   facultades_escuelas: 'Facultades/Escuelas',
@@ -823,6 +824,7 @@ function buildPreviewResumen(tipo: MockImportacionRecord['tipo'], hasErrors: boo
     elasticidad:          { n: 12, a: 0 },
     canales:              { n: 5,  a: 3 },
     competencia:          { n: 20, a: 6 },
+    categorias_academicas:{ n: 0,  a: 0 },
     // Educación
     programas:            { n: 18, a: 0 },
     facultades_escuelas:  { n: 4,  a: 0 },
@@ -1126,15 +1128,11 @@ function handleReglasEdu(method: string, path: string, body: unknown, params: UR
     return ok(store.asignacionesSnies[tid])
   }
 
-  // ── Categorías Académicas ───────────────────────────────────────────────────
-  if (method === 'GET' && path === 'reglas/categorias-academicas') {
-    return ok(store.categoriasAcademicas[tid] ?? [])
-  }
-
-  if (method === 'PUT' && path === 'reglas/categorias-academicas') {
-    const { categorias } = body as { categorias: Array<{ nombre: string }> }
-    store.categoriasAcademicas[tid] = categorias
-    return ok(store.categoriasAcademicas[tid])
+  // ── Categorías Académicas (DEPRECADO P1 2026-05-05 — reemplazado por
+  //    Facultades/Escuelas, ver `reglas/facultades-escuelas`). Handler 410
+  //    para detectar callers stale en dev sin romper la build.
+  if (path === 'reglas/categorias-academicas') {
+    return Promise.reject({ response: { status: 410, data: { error: 'Categorías Académicas fue reemplazado por Facultad/Escuela en la decisión P1 2026-05-05.' } } })
   }
 
   // ── Competidores SNIES (read-only base global) ──────────────────────────────

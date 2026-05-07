@@ -1,4 +1,5 @@
-import { createContext, useContext, useEffect, useMemo, useCallback, ReactNode } from 'react'
+import { createContext, useContext, useEffect, useMemo, useCallback } from 'react'
+import type { ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import api from './api'
@@ -55,7 +56,7 @@ export function TenantActivoProvider({ children }: { children: ReactNode }) {
     tenantId,
     tenant,
     tenants,
-    industria: tenant?.industria ?? null,
+    industria: (tenant?.industria as Industria | undefined) ?? null,
     isLoading,
     setTenantId,
   }

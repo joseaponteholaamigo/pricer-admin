@@ -632,7 +632,7 @@ export interface MockImportacionError {
 export interface MockImportacionRecord {
   id: string
   tenantId: string
-  tipo: 'portafolio' | 'categorias' | 'competidores' | 'atributos' | 'calificaciones' | 'elasticidad' | 'canales' | 'competencia' | 'programas' | 'categorias_academicas' | 'atributos_r010' | 'calificaciones_edu' | 'asignaciones_snies' | 'snies_update'
+  tipo: 'portafolio' | 'categorias' | 'competidores' | 'atributos' | 'calificaciones' | 'elasticidad' | 'canales' | 'competencia' | 'programas' | 'categorias_academicas' | 'facultades_escuelas' | 'niveles_educativos' | 'ciudades' | 'atributos_r010' | 'calificaciones_edu' | 'asignaciones_snies' | 'snies_update'
   usuarioNombre: string
   usuarioId: string
   archivo: string
@@ -1545,7 +1545,11 @@ export interface MockCalificacionEdu {
 function buildCalificacionesEdu(): MockCalificacionEdu[] {
   const out: MockCalificacionEdu[] = []
   for (const prog of SEED_PROGRAMAS_ACADEMICOS) {
-    const catAttrs = SEED_ATRIBUTOS_R010.find(c => c.categoria === prog.categoria)
+    // Tras P1 2026-05-05, `programa` ya no tiene `categoria`. Reconstruimos la clave
+    // legacy desde nivel+facultad para emparejar con SEED_ATRIBUTOS_R010 (formato
+    // antiguo): "Pregrado Ingeniería", "Maestría Administración", etc.
+    const catKey = `${prog.nivel} ${prog.facultad}`
+    const catAttrs = SEED_ATRIBUTOS_R010.find(c => c.categoria === catKey)
     if (!catAttrs) continue
     const sniesAsignados = SEED_ASIGNACIONES_SNIES.filter(a => a.programaId === prog.id).map(a => a.sniesId)
     for (const atr of catAttrs.atributos) {

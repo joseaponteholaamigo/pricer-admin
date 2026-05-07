@@ -1,3 +1,5 @@
+export type Industria = 'consumo_masivo' | 'educacion' | 'moda'
+
 export interface TenantListItem {
   id: string
   nombre: string
@@ -175,6 +177,13 @@ export interface CanalesMargenes {
 export interface Umbrales {
   umbralSuperior: number
   umbralInferior: number
+}
+
+// R-008 + extras edu (vertical Educación)
+export interface UmbralesEdu extends Umbrales {
+  vpMaximo: number
+  sensibilidadMinima: number
+  mercadoTotalOverride: Array<{ categoria: string; valor: number }>
 }
 
 // R-010 — Retailers

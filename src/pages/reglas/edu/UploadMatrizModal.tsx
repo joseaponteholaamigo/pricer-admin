@@ -10,6 +10,7 @@ import type {
   MatrizPreferenciaColumna,
   MatrizPreferenciaColumnaAtributoNivel,
   MatrizPreferenciaColumnaMarca,
+  MatrizPreferenciaColumnaOptin,
   MatrizPreferenciaColumnaPrecio,
 } from '../../../lib/types'
 
@@ -216,7 +217,6 @@ export default function UploadMatrizModal({ isOpen, tenantId, tenantNombre, onCl
 
   const [parsedHeaders, setParsedHeaders] = useState<string[]>([])
   const [parsedRows, setParsedRows] = useState<number[][]>([])
-  const [colIndicesOptin, setColIndicesOptin] = useState<number[]>([])
   const [colIndicesPrecio, setColIndicesPrecio] = useState<number[]>([])
   const [colIndicesEtiquetar, setColIndicesEtiquetar] = useState<number[]>([])
   const [parseError, setParseError] = useState<string | null>(null)
@@ -236,7 +236,7 @@ export default function UploadMatrizModal({ isOpen, tenantId, tenantNombre, onCl
         return false
       }
 
-      const optinIdx = [0] // col 0 siempre es Opt-in
+      // col 0 siempre es Opt-in (validado al renderizar el preview)
       const precioIdxs: number[] = []
       const etiquetarIdxs: number[] = []
 
@@ -256,7 +256,6 @@ export default function UploadMatrizModal({ isOpen, tenantId, tenantNombre, onCl
 
       setParsedHeaders(headers)
       setParsedRows(rows)
-      setColIndicesOptin(optinIdx)
       setColIndicesPrecio(precioIdxs)
       setColIndicesEtiquetar(etiquetarIdxs)
 
@@ -392,7 +391,7 @@ export default function UploadMatrizModal({ isOpen, tenantId, tenantNombre, onCl
     const idToNombre = new Map(atributosDef.map(a => [a.id, a.nombre.trim()]))
 
     const columnas: MatrizPreferenciaColumna[] = [
-      { kind: 'optin', columnIndex: 0 },
+      { kind: 'optin', columnIndex: 0 } as MatrizPreferenciaColumnaOptin,
       ...etiquetas.map((e): MatrizPreferenciaColumna => {
         if (e.tipo === 'marca') {
           return {
